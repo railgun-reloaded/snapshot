@@ -1,0 +1,32 @@
+{
+  "name": "@railgun-reloaded/snapshot",
+  "version": "1.0.0",
+  "description": "A package to create snapshot of railgun events for data-sync",
+  "main": "src/index.js",
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/railgun-reloaded/snapshot.git"
+  },
+  "keywords": [
+    "railgun",
+    "railgun-reloaded",
+    "snapshot"
+  ],
+  "author": "RAILGUN Project Contributors",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/railgun-reloaded/snapshot/issues"
+  },
+  "homepage": "https://github.com/railgun-reloaded/snapshot#readme",
+  "devDependencies": {
+    "@railgun-reloaded/eslint-config": "^1.1.0",
+    "@railgun-reloaded/tsconfig": "^1.2.0",
+    "typescript": "^5.9.3"
+  }
+}
