@@ -7,7 +7,8 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "build": "tsc --build",
-    "clean": "tsc --build --clean"
+    "clean": "tsc --build --clean",
+    "start": "npm run build && node src/index.js"
   },
   "repository": {
     "type": "git",
@@ -24,6 +25,12 @@
     "url": "https://github.com/railgun-reloaded/snapshot/issues"
   },
   "homepage": "https://github.com/railgun-reloaded/snapshot#readme",
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "classic-level": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "fafo-scanner": "https://github.com/railgun-reloaded/scanner.git#feat/aggregator-enhancement"
+  },
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
