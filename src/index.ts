@@ -3,15 +3,47 @@ import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import type { EVMBlock } from 'fafo-scanner/src/models'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
 
-import { SnapshotDB } from './snapshot-database'
+import { RailgunDB } from './database'
+import { createSnapshotFromDB, restoreSnapshot } from './snapshot'
 
 dotenv.config()
 
 /**
- * Create snapshot of railgun event upto the latest height
+ * Return the larger of two bigints.
+ * @param a - left-hand bigint
+ * @param b - right-hand bigint
+ * @returns The greater of `a` and `b`.
  */
-async function createSnapshot () {
-  const chainID = Number(process.env['CHAIN_ID'])
+function maxBigInts (a: bigint, b: bigint) {
+  return a > b ? a : b
+}
+/**
+ * Return the smaller of two bigints.
+ * @param a - left-hand bigint
+ * @param b - right-hand bigint
+ * @returns The smaller of `a` and `b`.
+ */
+function minBigInts (a: bigint, b: bigint) {
+  return a < b ? a : b
+}
+
+/**
+ * Create snapshot of railgun event upto the latest height
+ * @param createOptions - Snapshot create options
+ * @param createOptions.chainID - Numeric chain identifier
+ * @param createOptions.dbName - Name of database to create
+ * @param createOptions.snapshotFilename - Filename of snapshot
+ * @param createOptions.startHeight - StartHeight to sync event
+ * @param createOptions.endHeight - EndHeight to sync event
+ */
+async function createSnapshot (createOptions: {
+  chainID: number;
+  dbName: string;
+  snapshotFilename: string;
+  startHeight?: bigint;
+  endHeight?: bigint;
+}) {
+  const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
   const { getNetworkConfigFromChainID } = require('./network-config')
@@ -27,9 +59,14 @@ async function createSnapshot () {
   const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
   const subsquidProvider = new SubsquidProvider(subsquidURL)
 
-  const db = new SnapshotDB('railgun.db')
-  const startHeight = await db.get<string>('latestHeight')
-  const endHeight = await rpcProvider.head()
+  const db = new RailgunDB(dbName)
+  const lastScannedHeight = await db.get<string>('latestHeight')
+
+  let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)
+  startHeight = createOptions.startHeight ? maxBigInts(startHeight, createOptions.startHeight) : startHeight
+
+  const latestHeight = await rpcProvider.head()
+  const endHeight = createOptions.endHeight ? minBigInts(createOptions.endHeight, latestHeight) : latestHeight
 
   const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
   const eventIterator = aggregatedSource.from({
@@ -43,13 +80,11 @@ async function createSnapshot () {
   for await (const event of eventIterator) {
     events.push(event)
   }
-
   await Promise.all([
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)
   ])
-
-  await db.createSnapshot()
+  await createSnapshotFromDB(db, snapshotFilename)
 }
 
-createSnapshot()
+export { createSnapshot, restoreSnapshot }
