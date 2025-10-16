@@ -1,7 +1,6 @@
 import { test } from 'brittle'
 import assert from 'node:assert/strict'
 import { makeTmpPath, cleanup } from './utils'
-
 import { RailgunDB } from '../src/database'
 
 test('RailgunDB set/get stores JSON and stringifies bigint', async () => {

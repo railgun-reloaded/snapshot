@@ -1,1 +1,1 @@
-export { createSnapshot, restoreSnapshot } from './snapshot'
+export { createSnapshot, writeSnapshot, restoreSnapshot } from './snapshot'

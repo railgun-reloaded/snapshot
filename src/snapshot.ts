@@ -1,10 +1,8 @@
 import fs from 'fs'
-
 import { decode, encode } from '@msgpack/msgpack'
-
 import { RailgunDB } from './database'
-
-require('dotenv').config()
+import dotenv from 'dotenv'
+dotenv.config()
 
 function maxBigInts (a: bigint, b: bigint) { return a > b ? a : b }
 function minBigInts (a: bigint, b: bigint) { return a < b ? a : b }
@@ -79,7 +77,7 @@ async function createSnapshot (createOptions: {
   endHeight?: bigint;
 }) {
   // TODO: release scanner pls
-  type EVMBlock = import('fafo-scanner/src/models').EVMBlock
+  type EVMBlock = any
   const { RPCProvider, SourceAggregator, SubsquidProvider } = require('fafo-scanner')
   const { RPCConnectionManager } = require('fafo-scanner/src/sources/rpc')
 

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 
 import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
 import fs from 'node:fs'
-import { CarReader } from '@ipld/car'
 import { makeTmpPath, cleanup, writeFile } from './utils'
 import { RailgunDB } from '../src/database'
 import { writeSnapshot } from '../src/snapshot'
@@ -67,10 +66,11 @@ test('writeCarWithRoot produces CAR with root matching raw CID', async () => {
   const cid = await computeRawCID(p)
   await writeCarWithRoot(p, car)
   const bytes = await fs.promises.readFile(car)
+  const { CarReader } = await import('@ipld/car')
   const reader = await CarReader.fromBytes(bytes)
   const roots = await reader.getRoots()
-  const root = roots[0]
-  const rootStr = root.toString()
+  assert.ok(roots.length > 0)
+  const rootStr = roots[0]!.toString()
   assert.equal(rootStr, cid)
   cleanup(p, car)
 })
