@@ -1,14 +1,16 @@
 import { test } from 'brittle'
+
 import assert from 'node:assert/strict'
 import path from 'node:path'
 
 import { RailgunDB } from '../src/database'
-import { createSnapshotFromDB, restoreSnapshot } from '../src/snapshot'
-import { makeTmpPath, cleanup, writeFile, exists } from './utils'
+import { restoreSnapshot, writeSnapshot } from '../src/snapshot'
 
-test('createSnapshotFromDB writes and restoreSnapshot reads back entries', async () => {
+import { cleanup, exists, makeTmpPath, writeFile } from './utils'
+
+test('writeSnapshot writes and restoreSnapshot reads back entries', async () => {
   const dbPath = makeTmpPath('db')
-  const outFile = makeTmpPath('snapshot') + '.gz'
+  const outFile = makeTmpPath('snapshot') + '.rsnap'
 
   const db = new RailgunDB(dbPath)
   await db.set('latestHeight', '12345')
@@ -20,7 +22,7 @@ test('createSnapshotFromDB writes and restoreSnapshot reads back entries', async
     nested: { arr: [1, 'x'] }
   })
 
-  await createSnapshotFromDB(db, outFile)
+  await writeSnapshot(db, outFile)
   assert.ok(exists(outFile), 'snapshot file should exist')
 
   const restored = await restoreSnapshot(outFile)
@@ -48,11 +50,10 @@ test('restoreSnapshot throws for missing file', async () => {
   assert.ok(threw, 'expected restoreSnapshot to throw for missing file')
 })
 
-test('restoreSnapshot returns undefined for corrupted gzip', async () => {
-  const badFile = makeTmpPath('corrupted') + '.gz'
+test('restoreSnapshot returns undefined for corrupted file', async () => {
+  const badFile = makeTmpPath('corrupted') + '.rsnap'
   const garbage = Buffer.from('not-a-valid-snapshot')
-  const gz = require('zlib').gzipSync(garbage)
-  writeFile(badFile, gz)
+  writeFile(badFile, garbage)
 
   const result = await restoreSnapshot(badFile)
   assert.equal(result, undefined)
