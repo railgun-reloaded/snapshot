@@ -39,7 +39,7 @@ test('writeSnapshot writes and restoreSnapshot reads back entries', async () => 
 })
 
 test('restoreSnapshot throws for missing file', async () => {
-  const missing = makeTmpPath('no-file') + '.gz'
+  const missing = makeTmpPath('no-file') + '.rsnap'
   let threw = false
   try {
     await restoreSnapshot(missing)
