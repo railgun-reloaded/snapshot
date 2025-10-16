@@ -31,7 +31,9 @@
     "classic-level": "^3.0.0",
     "dotenv": "^17.2.3",
     "fafo-scanner": "https://github.com/railgun-reloaded/scanner.git#feat/aggregator-enhancement",
-    "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master"
+    "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master",
+    "multiformats": "^12.1.3",
+    "@ipld/car": "^5.3.3"
   },
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
