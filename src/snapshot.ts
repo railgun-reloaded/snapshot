@@ -1,7 +1,9 @@
 import fs from 'fs'
+
 import { decode, encode } from '@msgpack/msgpack'
-import { RailgunDB } from './database'
 import dotenv from 'dotenv'
+
+import { RailgunDB } from './database'
 dotenv.config()
 
 function maxBigInts (a: bigint, b: bigint) { return a > b ? a : b }
@@ -68,6 +70,12 @@ async function restoreSnapshot (filename = 'snapshot.rsnap') {
 
 /**
  * Create snapshot by aggregating events from providers into DB, then writing snapshot file.
+ * @param createOptions
+ * @param createOptions.chainID
+ * @param createOptions.dbName
+ * @param createOptions.snapshotFilename
+ * @param createOptions.startHeight
+ * @param createOptions.endHeight
  */
 async function createSnapshot (createOptions: {
   chainID: number;
@@ -80,7 +88,6 @@ async function createSnapshot (createOptions: {
   type EVMBlock = any
   const { RPCProvider, SourceAggregator, SubsquidProvider } = require('fafo-scanner')
   const { RPCConnectionManager } = require('fafo-scanner/src/sources/rpc')
-
 
   const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')

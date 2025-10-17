@@ -1,7 +1,7 @@
-import { test } from 'brittle'
-
 import assert from 'node:assert/strict'
 import path from 'node:path'
+
+import { test } from 'brittle'
 
 import { RailgunDB } from '../src/database'
 import { restoreSnapshot, writeSnapshot } from '../src/snapshot'

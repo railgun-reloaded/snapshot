@@ -1,11 +1,13 @@
-import { test } from 'brittle'
 import assert from 'node:assert/strict'
-
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
 import fs from 'node:fs'
-import { makeTmpPath, cleanup, writeFile } from './utils'
+
+import { test } from 'brittle'
+
 import { RailgunDB } from '../src/database'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
 import { writeSnapshot } from '../src/snapshot'
+
+import { cleanup, makeTmpPath, writeFile } from './utils'
 
 test('computeRawCID deterministic for identical bytes', async () => {
   const p1 = makeTmpPath('blob')
