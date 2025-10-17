@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
+import { RailgunDB } from '../src/database.js'
 
-import { cleanup, makeTmpPath } from './utils'
+import { cleanup, makeTmpPath } from './utils.js'
 
 test('RailgunDB set/get stores JSON and stringifies bigint', async () => {
   const dbPath = makeTmpPath('db')

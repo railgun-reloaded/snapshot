@@ -3,11 +3,11 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
-import { writeSnapshot } from '../src/snapshot'
+import { RailgunDB } from '../src/database.js'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs.js'
+import { writeSnapshot } from '../src/snapshot.js'
 
-import { cleanup, makeTmpPath, writeFile } from './utils'
+import { cleanup, makeTmpPath, writeFile } from './utils.js'
 
 test('computeRawCID deterministic for identical bytes', async () => {
   const p1 = makeTmpPath('blob')

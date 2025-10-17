@@ -1,9 +1,15 @@
 import fs from 'fs'
+// dag-cbor is ESM-only; use dynamic import where needed
 
 import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
+import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
+import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc/index.js'
 
-import { RailgunDB } from './database'
+import { getNetworkConfigFromChainID } from './network-config.js'
+import { dagCborCIDFromObject } from './ipfs.js'
+
+import { RailgunDB } from './database.js'
 dotenv.config()
 
 function maxBigInts (a: bigint, b: bigint) { return a > b ? a : b }
@@ -17,8 +23,7 @@ function minBigInts (a: bigint, b: bigint) { return a < b ? a : b }
 async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
   // base method for writing events to db, still needs work
   const outFile = fs.createWriteStream(filename)
-  const levelDB = railgunDB.levelDB
-  for await (const [key, val] of levelDB.iterator()) {
+  for await (const [key, val] of railgunDB.entries()) {
     const entry = encode([key, val])
     const len = Buffer.alloc(4)
     len.writeUInt32BE(entry.length, 0)
@@ -27,6 +32,143 @@ async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap')
   }
   outFile.end()
   await new Promise<void>(resolve => outFile.on('finish', () => resolve()))
+}
+
+/**
+ * Normalize hex string: ensure 0x prefix, lowercase, even-length
+ */
+function normalizeHexString (v: string): string {
+  if (!v.startsWith('0x')) return v // treat only explicit hex as hex
+  let s = v.toLowerCase()
+  if (s.length % 2 === 1) s = '0x0' + s.slice(2)
+  return s
+}
+
+function canonicalizeValue (val: any): any {
+  if (Array.isArray(val)) return val.map(canonicalizeValue)
+  if (val && typeof val === 'object') {
+    const out: Record<string, any> = {}
+    for (const k of Object.keys(val)) out[k] = canonicalizeValue(val[k])
+    return out
+  }
+  if (typeof val === 'string') return normalizeHexString(val)
+  return val
+}
+
+// Shapes compatible with fafo-scanner EVM types
+type SnapshotEVMLog = {
+  index: number
+  address: string
+  name: string
+  args: Record<string, any>
+}
+
+type SnapshotEVMTransaction = {
+  hash: string
+  index: number
+  from: string
+  logs: SnapshotEVMLog[]
+}
+
+type SnapshotEVMBlock = {
+  number: bigint
+  hash: string
+  timestamp: bigint
+  transactions: SnapshotEVMTransaction[]
+  internalTransaction: { tracePath: number[]; from: string }[]
+}
+
+/**
+ * Create a canonical DAG-CBOR snapshot file with blocks/tx/logs
+ * @param railgunDB - DB instance containing 'events' array
+ * @param outPath - output .rsnap path (DAG-CBOR encoded root)
+ * @param meta - chain and range metadata
+ * @returns computed CID string for the DAG-CBOR root
+ */
+async function writeDagCborSnapshot (
+  railgunDB: RailgunDB,
+  outPath: string,
+  meta: { chainID: number; startHeight: bigint; endHeight: bigint }
+): Promise<string> {
+  const rawBlocks = await railgunDB.get<any[]>('events') ?? []
+  // Materialize to scanner-compatible shapes
+  const blocks: SnapshotEVMBlock[] = rawBlocks.map((blk: any) => {
+    const txs = Array.isArray(blk.transactions) ? blk.transactions : []
+    const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
+      const logsIn = Array.isArray(tx.logs) ? tx.logs : []
+      const logs: SnapshotEVMLog[] = logsIn.map((log: any) => ({
+        index: Number(log.index),
+        address: normalizeHexString(String(log.address)),
+        name: String(log.name),
+        args: canonicalizeValue(log.args ?? {}) as Record<string, any>
+      }))
+      // Sort logs by index
+      logs.sort((a, b) => a.index - b.index)
+      return {
+        hash: normalizeHexString(String(tx.hash)),
+        index: Number(tx.index),
+        from: normalizeHexString(String(tx.from)),
+        logs
+      }
+    })
+    // Sort txs by index
+    transactions.sort((a, b) => a.index - b.index)
+    return {
+      number: BigInt(blk.number),
+      hash: normalizeHexString(String(blk.hash)),
+      timestamp: BigInt(blk.timestamp),
+      transactions,
+      internalTransaction: Array.isArray(blk.internalTransaction) ? blk.internalTransaction : []
+    }
+  })
+  // Sort blocks by number
+  blocks.sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0))
+
+  const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t, tx) => t + tx.logs.length, 0), 0)
+  const root = {
+    version: 1,
+    chainID: meta.chainID,
+    startHeight: meta.startHeight,
+    endHeight: meta.endHeight,
+    entryCount,
+    blocks
+  }
+
+  const { cid, bytes } = await dagCborCIDFromObject(root)
+  await fs.promises.writeFile(outPath, Buffer.from(bytes))
+  return cid
+}
+
+/**
+ * Decode a DAG-CBOR snapshot file to root object with blocks
+ */
+async function readDagCborSnapshot (filePath: string): Promise<{
+  version: number
+  chainID: number
+  startHeight: bigint
+  endHeight: bigint
+  entryCount: number
+  blocks: SnapshotEVMBlock[]
+}> {
+  const dagCbor = await import('@ipld/dag-cbor')
+  const data = await fs.promises.readFile(filePath)
+  const root = dagCbor.decode(new Uint8Array(data)) as any
+  return root
+}
+
+/**
+ * Decode DAG-CBOR root from raw bytes (for readFromSnapshot(CID) via IPFS fetch)
+ */
+async function decodeDagCborRootFromBytes (bytes: Uint8Array): Promise<{
+  version: number
+  chainID: number
+  startHeight: number | bigint
+  endHeight: number | bigint
+  entryCount: number
+  blocks: SnapshotEVMBlock[]
+}> {
+  const dagCbor = await import('@ipld/dag-cbor')
+  return dagCbor.decode(bytes) as any
 }
 
 /**
@@ -86,21 +228,16 @@ async function createSnapshot (createOptions: {
 }) {
   // TODO: release scanner pls
   type EVMBlock = any
-  const { RPCProvider, SourceAggregator, SubsquidProvider } = require('fafo-scanner')
-  const { RPCConnectionManager } = require('fafo-scanner/src/sources/rpc')
+  // Providers now imported statically at top for ESM compatibility
 
   const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
-  // todo: refactor config module
-  const { getNetworkConfigFromChainID } = require('./network-config')
-  const { name: networkName, rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
+  const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
 
   if (!rpcURL) {
     throw new Error('Network RPC URL is not defined')
   }
-
-  console.log('//// Creating snapshot for ', networkName)
 
   const connectionManager = new RPCConnectionManager(4)
   const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
@@ -110,10 +247,20 @@ async function createSnapshot (createOptions: {
   const lastScannedHeight = await db.get<string>('latestHeight')
 
   let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)
+
   startHeight = createOptions.startHeight ? maxBigInts(startHeight, createOptions.startHeight) : startHeight
 
   const latestHeight = await rpcProvider.head()
   const endHeight = createOptions.endHeight ? minBigInts(createOptions.endHeight, latestHeight) : latestHeight
+
+  // Validate height range
+  if (startHeight > endHeight) {
+    throw new Error(`Invalid height range: startHeight (${startHeight}) cannot be greater than endHeight (${endHeight})`)
+  }
+
+  // Check SubsquidProvider head
+  const subsquidHead = await subsquidProvider.head()
+  console.log(`SubsquidProvider latest height: ${subsquidHead}`)
 
   const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
   const eventIterator = aggregatedSource.from({
@@ -123,14 +270,25 @@ async function createSnapshot (createOptions: {
   })
 
   const events = await db.get<EVMBlock[]>('events') ?? []
+  console.log(`Starting with ${events.length} existing events in DB`)
+
+  let newEventCount = 0
   for await (const event of eventIterator) {
     events.push(event)
+    newEventCount++
+    console.log(`Found event ${newEventCount}:`, event)
   }
+
+  console.log(`Total events after iteration: ${events.length} (${newEventCount} new events)`)
+  fs.writeFileSync('events-dump.json', JSON.stringify(events, (_key, value) =>
+    typeof value === 'bigint' ? value.toString() : value, 2))
+
   await Promise.all([
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)
   ])
   await writeSnapshot(db, snapshotFilename)
+  try { await (db as any).levelDB.close?.() } catch {}
 }
 
-export { createSnapshot, writeSnapshot, restoreSnapshot }
+export { createSnapshot, writeSnapshot, restoreSnapshot, writeDagCborSnapshot, readDagCborSnapshot, decodeDagCborRootFromBytes }
