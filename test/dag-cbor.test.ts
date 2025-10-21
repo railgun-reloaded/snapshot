@@ -3,11 +3,11 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database.js'
-import { writeDagCborSnapshot, readDagCborSnapshot } from '../src/snapshot.js'
-import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/ipfs.js'
+import { RailgunDB } from '../src/database'
+import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/ipfs'
+import { readDagCborSnapshot, writeDagCborSnapshot } from '../src/snapshot/snapshot'
 
-import { cleanup, makeTmpPath } from './utils.js'
+import { cleanup, makeTmpPath } from './utils'
 
 function makeBlock (overrides?: Partial<any>) {
   const base = {

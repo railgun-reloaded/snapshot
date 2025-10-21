@@ -3,10 +3,10 @@ import path from 'node:path'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database.js'
-import { restoreSnapshot, writeSnapshot } from '../src/snapshot.js'
+import { RailgunDB } from '../src/database'
+import { restoreSnapshot, writeSnapshot } from '../src/snapshot/snapshot'
 
-import { cleanup, exists, makeTmpPath, writeFile } from './utils.js'
+import { cleanup, exists, makeTmpPath, writeFile } from './utils'
 
 test('writeSnapshot writes and restoreSnapshot reads back entries', async () => {
   const dbPath = makeTmpPath('db')

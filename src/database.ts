@@ -1,6 +1,7 @@
-import { ClassicLevel } from 'classic-level'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+
+import { ClassicLevel } from 'classic-level'
 
 type Serializable = string | number | boolean | object | null
 
@@ -29,10 +30,12 @@ class RailgunDB {
   /**
    * Initialize Railgun Event Database
    * @param dbName - Name of Database
+   * @param opts
+   * @param opts.backend
    */
   constructor (dbName: string, opts?: { backend?: 'level' | 'file' }) {
     this.#dbName = dbName
-    const backend = opts?.backend ?? ((process.env as Record<string, any>)["SNAPSHOT_DB_BACKEND"] as 'level' | 'file' | undefined) ?? 'level'
+    const backend = opts?.backend ?? ((process.env as Record<string, any>)['SNAPSHOT_DB_BACKEND'] as 'level' | 'file' | undefined) ?? 'level'
     if (backend === 'file') {
       this.#db = createFileBackend(this.#dbName)
     } else {
