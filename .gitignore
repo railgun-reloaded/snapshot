@@ -21,5 +21,3 @@ coverage
 # Test tmp dir
 test/.tmp
 
-# demo test
-demo
