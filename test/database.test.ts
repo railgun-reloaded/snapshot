@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
+import { RailgunDB } from '../src/lib/database'
 
 import { cleanup, makeTmpPath } from './utils'
 

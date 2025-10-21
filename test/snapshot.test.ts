@@ -3,8 +3,8 @@ import path from 'node:path'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
-import { restoreSnapshot, writeSnapshot } from '../src/snapshot/snapshot'
+import { RailgunDB } from '../src/lib/database'
+import { restoreSnapshot, writeSnapshot } from '../src/snapshot/core'
 
 import { cleanup, exists, makeTmpPath, writeFile } from './utils'
 

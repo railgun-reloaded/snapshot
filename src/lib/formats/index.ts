@@ -23,5 +23,3 @@ export function isFormatsInitialized(): boolean {
 }
 
 export { getMultiformats, getIPLD }
-export * from './multiformats'
-export * from './ipld'

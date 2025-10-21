@@ -3,11 +3,13 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
-import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/ipfs'
-import { readDagCborSnapshot, writeDagCborSnapshot } from '../src/snapshot/snapshot'
+import { RailgunDB } from '../src/lib/database'
+import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/lib/content'
+import { readDagCborSnapshot, writeDagCborSnapshot } from '../src/snapshot/core'
+import { initializeFormats } from '../src/lib/formats'
 
 import { cleanup, makeTmpPath } from './utils'
+
 
 function makeBlock (overrides?: Partial<any>) {
   const base = {
@@ -40,6 +42,7 @@ function makeBlock (overrides?: Partial<any>) {
 }
 
 test('writeDagCborSnapshot returns CID and computeDagCborCID(out) matches', async () => {
+  await initializeFormats()
   const dbPath = makeTmpPath('db')
   const out = makeTmpPath('snap') + '.rsnap'
   const db = new RailgunDB(dbPath)
@@ -62,6 +65,7 @@ test('writeDagCborSnapshot returns CID and computeDagCborCID(out) matches', asyn
 })
 
 test('canonicalization: different tx/log orders yield identical CID', async () => {
+  await initializeFormats()
   const dbPath1 = makeTmpPath('db')
   const dbPath2 = makeTmpPath('db')
   const out1 = makeTmpPath('snap') + '.rsnap'
@@ -107,6 +111,7 @@ test('canonicalization: different tx/log orders yield identical CID', async () =
 })
 
 test('negative: minimal mutation changes CID', async () => {
+  await initializeFormats()
   const dbPath = makeTmpPath('db')
   const out1 = makeTmpPath('snap') + '.rsnap'
   const out2 = makeTmpPath('snap') + '.rsnap'
@@ -128,6 +133,7 @@ test('negative: minimal mutation changes CID', async () => {
 })
 
 test('CAR: root matches DAG-CBOR CID', async () => {
+  await initializeFormats()
   const dbPath = makeTmpPath('db')
   const out = makeTmpPath('snap') + '.rsnap'
   const car = makeTmpPath('car') + '.car'

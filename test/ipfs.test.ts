@@ -3,13 +3,16 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
-import { writeSnapshot } from '../src/snapshot/snapshot'
+import { RailgunDB } from '../src/lib/database'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content'
+import { writeSnapshot } from '../src/snapshot/core'
+import { initializeFormats } from '../src/lib/formats'
 
 import { cleanup, makeTmpPath, writeFile } from './utils'
 
+
 test('computeRawCID deterministic for identical bytes', async () => {
+  await initializeFormats()
   const p1 = makeTmpPath('blob')
   const p2 = makeTmpPath('blob')
   const data = Buffer.from('railgun-snapshot')
@@ -23,6 +26,7 @@ test('computeRawCID deterministic for identical bytes', async () => {
 })
 
 test('validateFileCID returns true for matching CID and false otherwise', async () => {
+  await initializeFormats()
   const p = makeTmpPath('blob')
   writeFile(p, Buffer.from('railgun-cid-check'))
 
@@ -34,6 +38,7 @@ test('validateFileCID returns true for matching CID and false otherwise', async 
 })
 
 test('computeRawCID differs when content differs by one byte', async () => {
+  await initializeFormats()
   const p1 = makeTmpPath('blob')
   const p2 = makeTmpPath('blob')
   writeFile(p1, Buffer.from('x'))
@@ -46,6 +51,7 @@ test('computeRawCID differs when content differs by one byte', async () => {
 })
 
 test('computeRawCID on .rsnap produced by writeSnapshot is stable', async () => {
+  await initializeFormats()
   const dbPath = makeTmpPath('db')
   const out1 = makeTmpPath('snap') + '.rsnap'
   const out2 = makeTmpPath('snap') + '.rsnap'
@@ -62,6 +68,7 @@ test('computeRawCID on .rsnap produced by writeSnapshot is stable', async () => 
 })
 
 test('writeCarWithRoot produces CAR with root matching raw CID', async () => {
+  await initializeFormats()
   const p = makeTmpPath('blob')
   const car = makeTmpPath('car') + '.car'
   writeFile(p, Buffer.from('railgun-car'))
