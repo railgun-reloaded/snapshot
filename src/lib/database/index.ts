@@ -1,19 +1,17 @@
 type Serializable = string | number | boolean | object | null
 
 /**
- * Simple in-memory data store for snapshot operations
- * Replaces the complex LevelDB implementation for basic get/set operations
+ * Simple in-memory data store for snapshot operations, to be replaced with drizzle
  */
 class RailgunDB {
   #data = new Map<string, any>()
 
   /**
    * Initialize the database
-   * @param _dbPath - Database path (ignored in in-memory implementation)
-   * @param _opts - Options (ignored in in-memory implementation)
+   * @param _dbPath
+   * @param _opts -
    */
   constructor(_dbPath?: string, _opts?: any) {
-    // No-op - in-memory store doesn't need path or options
   }
 
   /**
@@ -47,13 +45,13 @@ class RailgunDB {
    * Close the database (no-op for in-memory store)
    */
   async close() {
-    // No-op for in-memory implementation
+    // todo
   }
 
   /**
-   * Legacy getter for compatibility
    */
   get levelDB() {
+    // todo: replace refactor
     return this.#data
   }
 }
