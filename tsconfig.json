@@ -1,3 +1,4 @@
 {
-  "extends": ["@railgun-reloaded/tsconfig/tsconfig"]
+  "extends": ["@railgun-reloaded/tsconfig/tsconfig"],
+  "exclude": ["scripts/**/*"]
 }
