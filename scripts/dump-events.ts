@@ -64,7 +64,6 @@ async function eventsDump(options: any) {
     for await (const event of eventIterator) {
       events.push(event)
       newEventCount++
-      console.log(`'[events-dump]: found event ${newEventCount}:`, event)
     }
 
     fs.writeFileSync(outputFile, JSON.stringify(events, (_key, value) =>
