@@ -1,5 +1,4 @@
 import fs from 'fs'
-// dag-cbor is ESM-only; use dynamic import where needed
 
 import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
