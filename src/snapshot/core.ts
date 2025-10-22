@@ -237,7 +237,6 @@ async function createSnapshot (createOptions: {
     console.log(`Found event ${newEventCount}:`, event)
   }
 
-  console.log(`Total events after iteration: ${events.length} (${newEventCount} new events)`)
   fs.writeFileSync('events-dump.json', JSON.stringify(events, (_key, value) =>
     typeof value === 'bigint' ? value.toString() : value, 2))
 

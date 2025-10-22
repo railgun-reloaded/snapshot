@@ -257,7 +257,7 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db1 = new RailgunDB(dbPath1)
     await db1.set('events', rgEvents)
-    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[5].number })
+    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)

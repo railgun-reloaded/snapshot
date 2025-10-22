@@ -1,128 +1,62 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
-import { ClassicLevel } from 'classic-level'
-
 type Serializable = string | number | boolean | object | null
 
 /**
- * Railgun Database Instance
+ * Simple in-memory data store for snapshot operations
+ * Replaces the complex LevelDB implementation for basic get/set operations
  */
-type Backend = {
-  put: (key: string, value: string) => Promise<void>
-  get: (key: string) => Promise<string | null>
-  iterator: () => AsyncIterable<[string, string]>
-  close?: () => Promise<void>
-  raw?: any
-}
-
 class RailgunDB {
-  /**
-   * Name of Database
-   */
-  #dbName: string
+  #data = new Map<string, any>()
 
   /**
-   * Instance of ClassicLevel Database
+   * Initialize the database
+   * @param _dbPath - Database path (ignored in in-memory implementation)
+   * @param _opts - Options (ignored in in-memory implementation)
    */
-  #db: Backend
-
-  /**
-   * Initialize Railgun Event Database
-   * @param dbName - Name of Database
-   * @param opts
-   * @param opts.backend
-   */
-  constructor (dbName: string, opts?: { backend?: 'level' | 'file' }) {
-    this.#dbName = dbName
-    const backend = opts?.backend ?? ((process.env as Record<string, any>)['SNAPSHOT_DB_BACKEND'] as 'level' | 'file' | undefined) ?? 'level'
-    if (backend === 'file') {
-      this.#db = createFileBackend(this.#dbName)
-    } else {
-      const level = new ClassicLevel(this.#dbName, { valueEncoding: 'utf8' } as any)
-      this.#db = {
-        put: async (k, v) => level.put(k, v),
-        get: async (k) => {
-          try { return await level.get(k) as string } catch { return null }
-        },
-        iterator: async function * () {
-          for await (const [k, v] of (level as any).iterator()) {
-            const vs = typeof v === 'string' ? v : Buffer.from(v as Uint8Array).toString('utf8')
-            yield [k as string, vs]
-          }
-        },
-        close: async () => { try { await (level as any).close?.() } catch {} },
-        raw: level
-      }
-    }
+  constructor(_dbPath?: string, _opts?: any) {
+    // No-op - in-memory store doesn't need path or options
   }
 
   /**
-   * Set the entry in the database
+   * Set a value in the store
    * @param key - Key to set
-   * @param values - Values for given key
+   * @param value - Value to store
    */
-  async set (key: string, values: Serializable) {
-    await this.#db.put(key, JSON.stringify(values, (_, v) => typeof (v) === 'bigint' ? v.toString() : v))
+  async set(key: string, value: Serializable) {
+    this.#data.set(key, value)
   }
 
   /**
-   * Get the value for given key
-   * @param key - Key to get from DB
-   * @returns - Values for given key
+   * Get a value from the store
+   * @param key - Key to retrieve
+   * @returns The stored value or null if not found
    */
-  async get<T=Serializable>(key: string) {
-    try {
-      const str = await this.#db.get(key)
-      if (str) { return JSON.parse(str) as T }
-    } catch {
-      console.log("Couldn't find key: ", key)
+  async get<T = Serializable>(key: string): Promise<T | null> {
+    return this.#data.get(key) ?? null
+  }
+
+  /**
+   * Iterate over all entries in the store
+   */
+  async *entries(): AsyncIterable<[string, any]> {
+    for (const [key, value] of this.#data) {
+      yield [key, JSON.stringify(value)]
     }
-    return null
   }
 
   /**
-   * Get levelDB instance
-   * @returns LevelDB Instance
+   * Close the database (no-op for in-memory store)
    */
-  get levelDB () {
-    return (this.#db as any).raw ?? this.#db
+  async close() {
+    // No-op for in-memory implementation
   }
 
   /**
-   * Generic async entries iterator across backends
+   * Legacy getter for compatibility
    */
-  async * entries (): AsyncIterable<[string, string]> {
-    yield * this.#db.iterator()
+  get levelDB() {
+    return this.#data
   }
 }
 
 export { RailgunDB }
 export type { Serializable }
-
-// Simple file-backed backend as placeholder: stores a flat JSON object { key: stringJSON }
-function createFileBackend (dbPath: string): Backend {
-  const dataFile = path.extname(dbPath) ? dbPath : path.join(dbPath)
-  let cache: Record<string, string> = {}
-  const load = async () => {
-    try {
-      const s = await fs.readFile(dataFile, 'utf8')
-      cache = s ? JSON.parse(s) : {}
-    } catch {
-      cache = {}
-    }
-  }
-  const persist = async () => {
-    await fs.mkdir(path.dirname(dataFile), { recursive: true }).catch(() => {})
-    await fs.writeFile(dataFile, JSON.stringify(cache))
-  }
-  // Initialize lazily upon first access
-  let inited = false
-  const ensure = async () => { if (!inited) { await load(); inited = true } }
-  return {
-    put: async (k, v) => { await ensure(); cache[k] = v; await persist() },
-    get: async (k) => { await ensure(); return cache[k] ?? null },
-    iterator: async function * () { await ensure(); for (const k of Object.keys(cache)) yield [k, cache[k]!] },
-    close: async () => { /* noop for file backend */ }
-  }
-}
