@@ -22,6 +22,4 @@ export function isFormatsInitialized(): boolean {
   return isMultiformatsInitialized() && isIPLDInitialized()
 }
 
-export { getMultiformats, getIPLD }
-export * from './multiformats'
-export * from './ipld'
+export { getMultiformats, getIPLD, isMultiformatsInitialized, isIPLDInitialized }
