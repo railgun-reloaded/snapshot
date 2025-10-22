@@ -48,13 +48,12 @@ async function encodeSnapshot (
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
 ): Promise<string> {
+  // todo: check if this is a required thing to sort or not
   const rawBlocks = await railgunDB.get<any[]>('events') ?? []
-  // Filter blocks to only include those within the specified range
   const filteredBlocks = rawBlocks.filter((blk: any) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
   })
-  // Materialize to scanner-compatible shapes
   const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: any) => {
     const txs = Array.isArray(blk.transactions) ? blk.transactions : []
     const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
@@ -65,7 +64,6 @@ async function encodeSnapshot (
         name: String(log.name),
         args: canonicalizeValue(log.args ?? {}) as Record<string, any>
       }))
-      // Sort logs by index
       logs.sort((a, b) => a.index - b.index)
       return {
         hash: normalizeHexString(String(tx.hash)),
@@ -74,7 +72,6 @@ async function encodeSnapshot (
         logs
       }
     })
-    // Sort txs by index
     transactions.sort((a, b) => a.index - b.index)
     return {
       number: BigInt(blk.number),
@@ -84,7 +81,6 @@ async function encodeSnapshot (
       internalTransaction: Array.isArray(blk.internalTransaction) ? blk.internalTransaction : []
     }
   })
-  // Sort blocks by number
   blocks.sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0))
 
   const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t, tx) => t + tx.logs.length, 0), 0)
@@ -193,7 +189,6 @@ async function createSnapshot (createOptions: {
 }) {
   // TODO: release scanner pls
   type EVMBlock = any
-  // Providers now imported statically at top for ESM compatibility
 
   const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
@@ -218,12 +213,10 @@ async function createSnapshot (createOptions: {
   const latestHeight = await rpcProvider.head()
   const endHeight = createOptions.endHeight ? minBigInts(createOptions.endHeight, latestHeight) : latestHeight
 
-  // Validate height range
   if (startHeight > endHeight) {
     throw new Error(`Invalid height range: startHeight (${startHeight}) cannot be greater than endHeight (${endHeight})`)
   }
 
-  // Check SubsquidProvider head
   const subsquidHead = await subsquidProvider.head()
   console.log(`SubsquidProvider latest height: ${subsquidHead}`)
 
