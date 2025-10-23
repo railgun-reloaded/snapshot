@@ -44,7 +44,7 @@ async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap')
  * @param meta.endHeight
  * @returns computed CID string for the DAG-CBOR root
  */
-async function writeDagCborSnapshot (
+async function encodeSnapshot (
   railgunDB: RailgunDB,
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
@@ -102,7 +102,7 @@ async function writeDagCborSnapshot (
  * Decode a DAG-CBOR snapshot file to root object with blocks
  * @param filePath
  */
-async function readDagCborSnapshot (filePath: string): Promise<{
+async function decodeSnapshot (filePath: string): Promise<{
   version: number
   chainID: number
   startHeight: bigint
@@ -120,7 +120,7 @@ async function readDagCborSnapshot (filePath: string): Promise<{
  * Decode DAG-CBOR root from raw bytes (for readFromSnapshot(CID) via IPFS fetch)
  * @param bytes
  */
-async function decodeDagCborRootFromBytes (bytes: Uint8Array): Promise<{
+async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
   version: number
   chainID: number
   startHeight: number | bigint
@@ -252,4 +252,4 @@ async function createSnapshot (createOptions: {
   try { await (db as any).levelDB.close?.() } catch {}
 }
 
-export { createSnapshot, writeSnapshot, restoreSnapshot, writeDagCborSnapshot, readDagCborSnapshot, decodeDagCborRootFromBytes }
+export { createSnapshot, writeSnapshot, restoreSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes }

@@ -1,5 +1,5 @@
-import { initializeMultiformats, getMultiformats, isInitialized as isMultiformatsInitialized } from './multiformats'
-import { initializeIPLD, getIPLD, isInitialized as isIPLDInitialized } from './ipld'
+import { initializeIPLD, isInitialized as isIPLDInitialized } from './ipld'
+import { initializeMultiformats, isInitialized as isMultiformatsInitialized } from './multiformats'
 
 
 // dev-note;
@@ -11,15 +11,15 @@ import { initializeIPLD, getIPLD, isInitialized as isIPLDInitialized } from './i
 // so I'd thoguht probably this is cleaner and gives us the same flexibility for handling imports like we do everywhere else
 // only con is that we need to run this function at  start (its ugly) (i know) (I want to remove trust me)
 // alternative: ipfs-car ??
-export async function initializeFormats(): Promise<void> {
+async function initializeFormats (): Promise<void> {
   await Promise.all([
     initializeMultiformats(),
     initializeIPLD()
   ])
 }
 
-export function isFormatsInitialized(): boolean {
+function isFormatsInitialized (): boolean {
   return isMultiformatsInitialized() && isIPLDInitialized()
 }
 
-export { getMultiformats, getIPLD }
+export { initializeFormats, isFormatsInitialized }

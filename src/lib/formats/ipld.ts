@@ -8,7 +8,7 @@ interface IPLDAPI {
 
 let ipldAPI: IPLDAPI | null = null
 
-export async function initializeIPLD(): Promise<void> {
+async function initializeIPLD (): Promise<void> {
   if (ipldAPI) return
 
   const [dagCbor, car] = await Promise.all([
@@ -22,13 +22,15 @@ export async function initializeIPLD(): Promise<void> {
   }
 }
 
-export function getIPLD(): IPLDAPI {
+function getIPLD (): IPLDAPI {
   if (!ipldAPI) {
     throw new Error('IPLD not initialized. Call initializeIPLD() first.')
   }
   return ipldAPI
 }
 
-export function isInitialized(): boolean {
+function isInitialized (): boolean {
   return ipldAPI !== null
 }
+
+export { initializeIPLD, getIPLD, isInitialized }
