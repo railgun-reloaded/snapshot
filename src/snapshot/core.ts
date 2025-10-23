@@ -50,8 +50,13 @@ async function encodeSnapshot (
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
 ): Promise<string> {
   const rawBlocks = await railgunDB.get<any[]>('events') ?? []
+  // Filter blocks to only include those within the specified range
+  const filteredBlocks = rawBlocks.filter((blk: any) => {
+    const blockNumber = BigInt(blk.number)
+    return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
+  })
   // Materialize to scanner-compatible shapes
-  const blocks: SnapshotEVMBlock[] = rawBlocks.map((blk: any) => {
+  const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: any) => {
     const txs = Array.isArray(blk.transactions) ? blk.transactions : []
     const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
       const logsIn = Array.isArray(tx.logs) ? tx.logs : []
