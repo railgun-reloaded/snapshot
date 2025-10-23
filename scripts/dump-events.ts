@@ -5,8 +5,8 @@ const path = require('path')
 
 import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
-import { getNetworkConfigFromChainID } from '../src/network-config'
-import { RailgunDB } from '../src/database'
+import { getNetworkConfigFromChainID } from '../src/config'
+import { RailgunDB } from '../src/lib/database'
 import { minBigInts } from '../src/snapshot/utils'
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') })
@@ -24,7 +24,9 @@ async function eventsDump(options: any) {
   try {
 
 
-    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
+    const config = getNetworkConfigFromChainID(chainID)
+    console.log('Network config:', config)
+    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = config
 
     if (!rpcURL) {
       throw new Error('[events-dump]: network RPC URL is not defined')

@@ -44,7 +44,6 @@ export function loadBlockchainEvents(): BlockchainEventData {
 
 
       if (Array.isArray(parsed)) {
-        // squid format
         eventData = {
           metadata: {
             chainID: 1,
