@@ -7,7 +7,7 @@ import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
 import { getNetworkConfigFromChainID } from '../src/network-config'
 import { RailgunDB } from '../src/database'
-import { maxBigInts, minBigInts } from '../src/snapshot/utils'
+import { minBigInts } from '../src/snapshot/utils'
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') })
 
@@ -52,7 +52,7 @@ async function eventsDump(options: any) {
 
     const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
     const eventIterator = aggregatedSource.from({
-      startHeight: startHeight ? BigInt(startHeight) + 1n : deploymentBlock,
+      startHeight: BigInt(startHeight),
       endHeight,
       chunkSize: 10_000n
     })
