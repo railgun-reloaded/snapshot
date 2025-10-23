@@ -5,9 +5,9 @@ import dotenv from 'dotenv'
 import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc/index.js'
 
-import { RailgunDB } from '../database'
-import { dagCborCIDFromObject } from '../ipfs'
-import { getNetworkConfigFromChainID } from '../network-config'
+import { RailgunDB } from '../lib/database'
+import { dagCborCIDFromObject } from '../lib/content'
+import { getNetworkConfigFromChainID } from '../config'
 
 import type { SnapshotEVMBlock, SnapshotEVMLog, SnapshotEVMTransaction } from './types'
 import { canonicalizeValue, maxBigInts, minBigInts, normalizeHexString } from './utils'
