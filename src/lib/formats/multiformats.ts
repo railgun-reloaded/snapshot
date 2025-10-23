@@ -10,7 +10,7 @@ interface MultiformatsAPI {
 
 let multiformatsAPI: MultiformatsAPI | null = null
 
-export async function initializeMultiformats(): Promise<void> {
+async function initializeMultiformats (): Promise<void> {
   if (multiformatsAPI) return
 
   const [multiformats, raw, { sha256 }] = await Promise.all([
@@ -26,13 +26,15 @@ export async function initializeMultiformats(): Promise<void> {
   }
 }
 
-export function getMultiformats(): MultiformatsAPI {
+function getMultiformats (): MultiformatsAPI {
   if (!multiformatsAPI) {
     throw new Error('Multiformats not initialized. Call initializeMultiformats() first.')
   }
   return multiformatsAPI
 }
 
-export function isInitialized(): boolean {
+function isInitialized (): boolean {
   return multiformatsAPI !== null
 }
+
+export { initializeMultiformats, getMultiformats, isInitialized }
