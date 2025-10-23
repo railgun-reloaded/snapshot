@@ -1,5 +1,5 @@
-import { initializeIPLD, isInitialized as isIPLDInitialized } from './ipld'
-import { initializeMultiformats, isInitialized as isMultiformatsInitialized } from './multiformats'
+import { initializeIPLD, isInitialized as isIPLDInitialized, getIPLD } from './ipld'
+import { initializeMultiformats, isInitialized as isMultiformatsInitialized, getMultiformats } from './multiformats'
 
 
 // dev-note;
@@ -22,4 +22,4 @@ function isFormatsInitialized (): boolean {
   return isMultiformatsInitialized() && isIPLDInitialized()
 }
 
-export { getMultiformats, getIPLD, isMultiformatsInitialized, isIPLDInitialized }
+export { initializeFormats, isFormatsInitialized, getMultiformats, getIPLD }

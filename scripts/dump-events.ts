@@ -27,7 +27,9 @@ async function eventsDump(options: any) {
   try {
 
 
-    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
+    const config = getNetworkConfigFromChainID(chainID)
+    console.log('Network config:', config)
+    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = config
 
     if (!rpcURL) {
       throw new Error('[events-dump]: network RPC URL is not defined')

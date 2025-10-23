@@ -5,10 +5,10 @@ import { test } from 'brittle'
 // @ts-ignore - hook not in type definitions but exists in 3.19.0
 const { hook } = require('brittle')
 
-import { RailgunDB } from '../src/database'
-import { initializeFormats } from '../src/formats'
-import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/ipfs'
-import { decodeSnapshot, encodeSnapshot } from '../src/snapshot/snapshot'
+import { RailgunDB } from '../src/lib/database'
+import { initializeFormats } from '../src/lib/formats'
+import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/lib/content'
+import { decodeSnapshot, encodeSnapshot } from '../src/snapshot/core'
 
 import { cleanup, makeTmpPath } from './utils'
 import { loadBlockchainEvents } from './fixtures'
@@ -86,7 +86,7 @@ test('Snapshot basic encoding', async (t) => {
     await db.set('events', rgEvents)
 
     const cid1 = await encodeSnapshot(db, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[0].number })
-    const cid2 = await encodeSnapshot(db, out2, { chainID: 1, startHeight: rgEvents[1].number, endHeight: rgEvents[1].number })
+    const cid2 = await encodeSnapshot(db, out2, { chainID: 1, startHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number, endHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number })
 
     assert.notEqual(cid1, cid2)
 
@@ -196,7 +196,7 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)
-    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[1].number })
+    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number })
 
     assert.notEqual(cid1, cid2)
 
@@ -211,11 +211,11 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db1 = new RailgunDB(dbPath1)
     await db1.set('events', rgEvents)
-    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
+    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)
-    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
+    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
     assert.equal(cid1, cid2)
 
@@ -232,15 +232,15 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db1 = new RailgunDB(dbPath1)
     await db1.set('events', rgEvents)
-    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
+    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)
-    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[1].number, endHeight: rgEvents[3].number })
+    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number, endHeight: rgEvents[Math.min(3, rgEvents.length - 1)].number })
 
     const db3 = new RailgunDB(dbPath3)
     await db3.set('events', rgEvents)
-    const cid3 = await encodeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[2].number, endHeight: rgEvents[4].number })
+    const cid3 = await encodeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number, endHeight: rgEvents[Math.min(4, rgEvents.length - 1)].number })
 
     assert.notEqual(cid1, cid2)
     assert.notEqual(cid2, cid3)
@@ -257,11 +257,11 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db1 = new RailgunDB(dbPath1)
     await db1.set('events', rgEvents)
-    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
+    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)
-    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[3].number, endHeight: rgEvents[8].number })
+    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[3].number, endHeight: rgEvents[Math.min(8, rgEvents.length - 1)].number })
 
     assert.notEqual(cid1, cid2)
 
@@ -278,15 +278,15 @@ test('Snapshot encoding determinism', async (t) => {
 
     const db1 = new RailgunDB(dbPath1)
     await db1.set('events', rgEvents)
-    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[1].number })
+    const cid1 = await encodeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number })
 
     const db2 = new RailgunDB(dbPath2)
     await db2.set('events', rgEvents)
-    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[2].number })
+    const cid2 = await encodeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
     const db3 = new RailgunDB(dbPath3)
     await db3.set('events', rgEvents)
-    const cid3 = await encodeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[10].number })
+    const cid3 = await encodeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(10, rgEvents.length - 1)].number })
 
     assert.notEqual(cid1, cid2)
     assert.notEqual(cid2, cid3)
