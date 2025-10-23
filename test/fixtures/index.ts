@@ -42,18 +42,35 @@ export function loadBlockchainEvents(): BlockchainEventData {
       const rawData = fs.readFileSync(dataPath, 'utf8')
       const parsed = JSON.parse(rawData)
 
-      // Validate the structure
-      if (!parsed.metadata || !parsed.fullDataset || !Array.isArray(parsed.fullDataset)) {
-        throw new Error(
-          `Invalid events dump file format\n` +
-          `run 'npm run test:generate:events-dump' first.\n`
-        )
+
+      if (Array.isArray(parsed)) {
+        // squid format
+        eventData = {
+          metadata: {
+            chainID: 1,
+            startBlock: '0',
+            endBlock: '0',
+            description: 'Scanner dump data',
+            scannedBlocks: parsed.length,
+            blocksWithEvents: parsed.length,
+            totalEvents: parsed.reduce((sum: number, block: any) =>
+              sum + (block.transactions?.reduce((txSum: number, tx: any) =>
+                txSum + (tx.logs?.length || 0), 0) || 0), 0),
+            extractedAt: new Date().toISOString(),
+            networkConfig: {
+              rpcURL: 'test',
+              contractAddress: '0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9',
+              deploymentBlock: '0'
+            }
+          },
+          blocks: parsed,
+          blockRange: parsed,
+          fullDataset: parsed
+        }
+      } else {
+        throw new Error('Unrecognized events dump format')
       }
 
-      eventData = {
-        ...parsed,
-        blocks: parsed.fullDataset
-      }
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new Error(
