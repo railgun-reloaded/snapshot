@@ -12,7 +12,7 @@ import { minBigInts } from '../src/snapshot/utils'
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') })
 
-// NOTE: This will mostly be replaced soon with a proper ipfs hash of any dump so we don;t need to run this every time :) 
+// NOTE: This will mostly be replaced soon with a proper ipfs hash of any dump so we don;t need to run this every time :)
 
 async function eventsDump(options: any) {
   const {
@@ -28,7 +28,6 @@ async function eventsDump(options: any) {
 
 
     const config = getNetworkConfigFromChainID(chainID)
-    console.log('Network config:', config)
     const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = config
 
     if (!rpcURL) {
