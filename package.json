@@ -1,0 +1,44 @@
+{
+  "name": "@railgun-reloaded/snapshot",
+  "version": "1.0.0",
+  "description": "A package to create snapshot of railgun events for data-sync",
+  "main": "src/index.js",
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "pretest": "npm run build",
+    "test": "NODE_OPTIONS=--enable-source-maps brittle --coverage test/**/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/railgun-reloaded/snapshot.git"
+  },
+  "keywords": [
+    "railgun",
+    "railgun-reloaded",
+    "snapshot"
+  ],
+  "author": "RAILGUN Project Contributors",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/railgun-reloaded/snapshot/issues"
+  },
+  "homepage": "https://github.com/railgun-reloaded/snapshot#readme",
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "classic-level": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "fafo-scanner": "https://github.com/railgun-reloaded/scanner.git#feat/aggregator-enhancement",
+    "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master"
+  },
+  "devDependencies": {
+    "@railgun-reloaded/eslint-config": "^1.1.0",
+    "@railgun-reloaded/tsconfig": "^1.2.0",
+    "@types/brittle": "^3.5.0",
+    "brittle": "^3.19.0",
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.3"
+  }
+}
