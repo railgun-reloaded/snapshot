@@ -325,3 +325,78 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2, out1, out2)
   })
 })
+
+test('Snapshot error handling', async (t) => {
+  t.test('should handle invalid block range (startHeight > endHeight)', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+    await db.set('events', rgEvents)
+
+    // Should still create snapshot but with no blocks
+    const cid = await encodeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 99999999n,
+      endHeight: 1n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 0)
+    assert.equal(root.entryCount, 0)
+
+    cleanup(dbPath, out)
+  })
+
+  t.test('should handle malformed block data gracefully', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+
+    // Malformed data: missing transactions array
+    const malformedBlock = {
+      number: 12345,
+      hash: '0xabc',
+      timestamp: 1234567890,
+      // transactions: missing
+    }
+
+    await db.set('events', [malformedBlock])
+
+    const cid = await encodeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 12345n,
+      endHeight: 12345n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 1)
+    assert.equal(root.blocks[0]!.transactions.length, 0)
+
+    cleanup(dbPath, out)
+  })
+
+  t.test('should handle blocks outside requested range', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+    await db.set('events', rgEvents)
+
+    // Request range that doesn't exist in data
+    const cid = await encodeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 99999990n,
+      endHeight: 99999999n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 0)
+    assert.equal(root.entryCount, 0)
+    assert.equal(BigInt(root.startHeight), 99999990n)
+    assert.equal(BigInt(root.endHeight), 99999999n)
+
+    cleanup(dbPath, out)
+  })
+})

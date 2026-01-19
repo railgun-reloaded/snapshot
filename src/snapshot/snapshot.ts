@@ -13,6 +13,9 @@ import { canonicalizeValue, maxBigInts, minBigInts, normalizeHexString } from '.
 
 dotenv.config()
 
+// Temporary type until fafo-scanner exports proper types
+type RawBlockchainEvent = any
+
 /**
  * Create a canonical DAG-CBOR snapshot file with blocks/tx/logs
  * @param railgunDB - DB instance containing 'events' array
@@ -28,17 +31,16 @@ async function encodeSnapshot (
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
 ): Promise<string> {
-  // todo: check if this is a required thing to sort or not
-  const rawBlocks = await railgunDB.get<any[]>('events') ?? []
-  const filteredBlocks = rawBlocks.filter((blk: any) => {
+  const rawBlocks = await railgunDB.get<RawBlockchainEvent[]>('events') ?? []
+  const filteredBlocks = rawBlocks.filter((blk: RawBlockchainEvent) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
   })
-  const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: any) => {
+  const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: RawBlockchainEvent) => {
     const txs = Array.isArray(blk.transactions) ? blk.transactions : []
-    const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
+    const transactions: SnapshotEVMTransaction[] = txs.map((tx: RawBlockchainEvent) => {
       const logsIn = Array.isArray(tx.logs) ? tx.logs : []
-      const logs: SnapshotEVMLog[] = logsIn.map((log: any) => ({
+      const logs: SnapshotEVMLog[] = logsIn.map((log: RawBlockchainEvent) => ({
         index: Number(log.index),
         address: normalizeHexString(String(log.address)),
         name: String(log.name),
@@ -113,23 +115,19 @@ async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
 }
 
 /**
- * Create snapshot by aggregating events from providers into DB, then writing snapshot file.
+ * Create snapshot by aggregating events from providers into DB.
  * @param createOptions
  * @param createOptions.chainID
- * @param createOptions.snapshotFilename
  * @param createOptions.startHeight
  * @param createOptions.endHeight
  */
 async function createSnapshot (createOptions: {
   chainID: number;
-  snapshotFilename: string;
   startHeight?: bigint;
   endHeight?: bigint;
 }) {
-  // TODO: release scanner pls
-  type EVMBlock = any
-
-  const { chainID, snapshotFilename } = createOptions
+  // TODO: release scanner pls - using RawBlockchainEvent until then
+  const { chainID } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
   const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
@@ -166,7 +164,7 @@ async function createSnapshot (createOptions: {
     chunkSize: 10_000n
   })
 
-  const events = await db.get<EVMBlock[]>('events') ?? []
+  const events = await db.get<RawBlockchainEvent[]>('events') ?? []
   console.log(`Starting with ${events.length} existing events in DB`)
 
   let newEventCount = 0
@@ -176,10 +174,9 @@ async function createSnapshot (createOptions: {
     console.log(`Found event ${newEventCount}:`, event)
   }
 
-  fs.writeFileSync('events-dump.json', JSON.stringify(events, (_key, value) =>
-    typeof value === 'bigint' ? value.toString() : value, 2))
-
   await Promise.all([
+    fs.promises.writeFile('events-dump.json', JSON.stringify(events, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value, 2)),
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)
   ])

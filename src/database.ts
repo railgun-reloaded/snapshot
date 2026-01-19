@@ -1,10 +1,10 @@
-type Serializable = string | number | boolean | object | null
+type Serializable = string | number | boolean | bigint | object | null | Serializable[]
 
 /**
  * Simple in-memory data store for snapshot operations, to be replaced with drizzle
  */
 class RailgunDB {
-  #data = new Map<string, any>()
+  #data = new Map<string, Serializable>()
 
   /**
    * Initialize the database
@@ -27,13 +27,13 @@ class RailgunDB {
    * @returns The stored value or null if not found
    */
   async get<T = Serializable>(key: string): Promise<T | null> {
-    return this.#data.get(key) ?? null
+    return (this.#data.get(key) as T) ?? null
   }
 
   /**
    * Iterate over all entries in the store
    */
-  async *entries(): AsyncIterable<[string, any]> {
+  async *entries(): AsyncIterable<[string, Serializable]> {
     for (const [key, value] of this.#data) {
       yield [key, JSON.stringify(value)]
     }
