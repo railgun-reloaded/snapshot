@@ -12,7 +12,7 @@ test.skip('writeSnapshot writes and restoreSnapshot reads back entries', async (
   const dbPath = makeTmpPath('db')
   const outFile = makeTmpPath('snapshot') + '.rsnap'
 
-  const db = new RailgunDB(dbPath)
+  const db = new RailgunDB()
   await db.set('latestHeight', '12345')
   await db.set('events', {
     ok: true,

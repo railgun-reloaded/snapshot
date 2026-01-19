@@ -34,7 +34,7 @@ async function eventsDump(options: any) {
     const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
     const subsquidProvider = new SubsquidProvider(subsquidURL)
 
-    const db = new RailgunDB('tempdb')
+    const db = new RailgunDB()
     const lastScannedHeight = await db.get<string>('latestHeight')
 
     let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)

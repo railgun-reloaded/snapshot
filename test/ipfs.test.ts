@@ -49,7 +49,7 @@ test('computeRawCID on .rsnap produced by writeSnapshot is stable', async () => 
   const dbPath = makeTmpPath('db')
   const out1 = makeTmpPath('snap') + '.rsnap'
   const out2 = makeTmpPath('snap') + '.rsnap'
-  const db = new RailgunDB(dbPath)
+  const db = new RailgunDB()
   await db.set('latestHeight', '1')
   await db.set('events', [{ a: 1, b: 'x' }])
   await writeSnapshot(db, out1)
