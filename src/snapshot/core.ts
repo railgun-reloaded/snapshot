@@ -2,15 +2,13 @@ import fs from 'fs'
 
 import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
-import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
-import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc/index.js'
+import { SubsquidProvider } from 'fafo-scanner'
+import type { Action, EVMBlock } from 'fafo-scanner'
 
 import { RailgunDB } from '../lib/database'
 import { dagCborCIDFromObject } from '../lib/content'
 import { getNetworkConfigFromChainID } from '../config'
-
-import type { SnapshotEVMBlock, SnapshotEVMLog, SnapshotEVMTransaction } from './types'
-import { canonicalizeValue, maxBigInts, minBigInts, normalizeHexString } from './utils'
+import { maxBigInts, minBigInts } from './utils'
 
 dotenv.config()
 
@@ -50,10 +48,11 @@ async function encodeSnapshot (
 ): Promise<string> {
   // todo: check if this is a required thing to sort or not
   const rawBlocks = await railgunDB.get<any[]>('events') ?? []
-  const filteredBlocks = rawBlocks.filter((blk: any) => {
+  const blocks = rawBlocks.filter((blk: any) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
   })
+  /*
   const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: any) => {
     const txs = Array.isArray(blk.transactions) ? blk.transactions : []
     const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
@@ -82,8 +81,8 @@ async function encodeSnapshot (
     }
   })
   blocks.sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0))
-
-  const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t, tx) => t + tx.logs.length, 0), 0)
+  */
+  const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t: any, tx: { actions: Action[][] }) => t + tx.actions.flat().length, 0), 0)
   const root = {
     version: 1,
     chainID: meta.chainID,
@@ -108,7 +107,7 @@ async function decodeSnapshot (filePath: string): Promise<{
   startHeight: bigint
   endHeight: bigint
   entryCount: number
-  blocks: SnapshotEVMBlock[]
+  blocks: EVMBlock[]
 }> {
   const dagCbor = await import('@ipld/dag-cbor')
   const data = await fs.promises.readFile(filePath)
@@ -126,7 +125,7 @@ async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
   startHeight: number | bigint
   endHeight: number | bigint
   entryCount: number
-  blocks: SnapshotEVMBlock[]
+  blocks: EVMBlock[]
 }> {
   const dagCbor = await import('@ipld/dag-cbor')
   return dagCbor.decode(bytes) as any
@@ -193,14 +192,12 @@ async function createSnapshot (createOptions: {
   const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
-  const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
+  const { rpcURL, subsquidURL, deploymentBlock} = getNetworkConfigFromChainID(chainID)
 
   if (!rpcURL) {
     throw new Error('Network RPC URL is not defined')
   }
 
-  const connectionManager = new RPCConnectionManager(4)
-  const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
   const subsquidProvider = new SubsquidProvider(subsquidURL)
 
   const db = new RailgunDB(dbName)
@@ -210,7 +207,7 @@ async function createSnapshot (createOptions: {
 
   startHeight = createOptions.startHeight ? maxBigInts(startHeight, createOptions.startHeight) : startHeight
 
-  const latestHeight = await rpcProvider.head()
+  const latestHeight = await subsquidProvider.head()
   const endHeight = createOptions.endHeight ? minBigInts(createOptions.endHeight, latestHeight) : latestHeight
 
   if (startHeight > endHeight) {
@@ -220,11 +217,10 @@ async function createSnapshot (createOptions: {
   const subsquidHead = await subsquidProvider.head()
   console.log(`SubsquidProvider latest height: ${subsquidHead}`)
 
-  const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
-  const eventIterator = aggregatedSource.from({
+  const eventIterator = subsquidProvider.from({
     startHeight: startHeight ? BigInt(startHeight) + 1n : deploymentBlock,
+    liveSync: false,
     endHeight,
-    chunkSize: 10_000n
   })
 
   const events = await db.get<EVMBlock[]>('events') ?? []

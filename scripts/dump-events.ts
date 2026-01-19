@@ -4,8 +4,7 @@ const path = require('path')
 // This script will be mainly replaced with a proper snapshot fetch once its fully on ipfs
 //
 
-import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
-import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
+import { SubsquidProvider } from 'fafo-scanner'
 import { getNetworkConfigFromChainID } from '../src/config'
 import { RailgunDB } from '../src/lib/database'
 import { minBigInts } from '../src/snapshot/utils'
@@ -34,8 +33,8 @@ async function eventsDump(options: any) {
       throw new Error('[events-dump]: network RPC URL is not defined')
     }
 
-    const connectionManager = new RPCConnectionManager(4)
-    const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
+    // const connectionManager = new RPCConnectionManager(4)
+    //const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
     const subsquidProvider = new SubsquidProvider(subsquidURL)
 
     const db = new RailgunDB('tempdb')
@@ -44,7 +43,7 @@ async function eventsDump(options: any) {
     let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)
     startHeight = startBlock
 
-    const latestHeight = await rpcProvider.head()
+    const latestHeight = await subsquidProvider.head()
     const endHeight = endBlock ? minBigInts(endBlock, latestHeight) : latestHeight
 
     if (startHeight > endHeight) {
@@ -54,11 +53,12 @@ async function eventsDump(options: any) {
     const subsquidHead = await subsquidProvider.head()
     console.log(`'[events-dump]: subsquidProvider latest height: ${subsquidHead}`)
 
-    const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
-    const eventIterator = aggregatedSource.from({
+   
+    const eventIterator = subsquidProvider.from({
       startHeight: BigInt(startHeight),
+      liveSync: false,
       endHeight,
-      chunkSize: 10_000n
+      chunkSize: 5_000n
     })
 
     const events = await db.get<any[]>('events') ?? []
