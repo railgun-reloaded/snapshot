@@ -3,9 +3,7 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/database'
 import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
-import { writeSnapshot } from '../src/snapshot/snapshot'
 
 import { cleanup, makeTmpPath, writeFile } from './utils'
 
@@ -43,22 +41,6 @@ test('computeRawCID differs when content differs by one byte', async () => {
   assert.notEqual(c1, c2)
 
   cleanup(p1, p2)
-})
-
-test('computeRawCID on .rsnap produced by writeSnapshot is stable', async () => {
-  const dbPath = makeTmpPath('db')
-  const out1 = makeTmpPath('snap') + '.rsnap'
-  const out2 = makeTmpPath('snap') + '.rsnap'
-  const db = new RailgunDB()
-  await db.set('latestHeight', '1')
-  await db.set('events', [{ a: 1, b: 'x' }])
-  await writeSnapshot(db, out1)
-  await writeSnapshot(db, out2)
-
-  const [c1, c2] = await Promise.all([computeRawCID(out1), computeRawCID(out2)])
-  assert.equal(c1, c2)
-
-  cleanup(dbPath, out1, out2)
 })
 
 test('writeCarWithRoot produces CAR with root matching raw CID', async () => {

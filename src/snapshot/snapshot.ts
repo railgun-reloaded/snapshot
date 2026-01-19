@@ -1,6 +1,5 @@
 import fs from 'fs'
 
-import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
 import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc/index.js'
@@ -13,25 +12,6 @@ import type { SnapshotEVMBlock, SnapshotEVMLog, SnapshotEVMTransaction } from '.
 import { canonicalizeValue, maxBigInts, minBigInts, normalizeHexString } from './utils'
 
 dotenv.config()
-
-/**
- * Create snapshot from RailgunDB Instance
- * @param railgunDB - Railgun DB Instance
- * @param filename - Output snapshot filename
- */
-async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
-  // base method for writing events to db, still needs work
-  const outFile = fs.createWriteStream(filename)
-  for await (const [key, val] of railgunDB.entries()) {
-    const entry = encode([key, val])
-    const len = Buffer.alloc(4)
-    len.writeUInt32BE(entry.length, 0)
-    outFile.write(len)
-    outFile.write(entry)
-  }
-  outFile.end()
-  await new Promise<void>(resolve => outFile.on('finish', () => resolve()))
-}
 
 /**
  * Create a canonical DAG-CBOR snapshot file with blocks/tx/logs
@@ -133,45 +113,6 @@ async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
 }
 
 /**
- * Restore snapshot from the file
- * @param filename - Snapshot file name (uncompressed)
- * @returns Key value pair stored in the snapshot
- */
-async function restoreSnapshot (filename = 'snapshot.rsnap') {
-  if (!fs.existsSync(filename)) {
-    throw new Error("File doesn't exists")
-  }
-
-  const stream = fs.createReadStream(filename)
-  let buffer = Buffer.alloc(0)
-  try {
-    await new Promise<void>((resolve, reject) => {
-      stream.on('data', (chunk) => {
-        const b = typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer)
-        buffer = Buffer.concat([buffer, b])
-      })
-      stream.on('end', () => resolve())
-      stream.on('error', (err) => reject(err))
-    })
-
-    const result : Record<string, any> = {}
-    while (buffer.length > 0) {
-      const len = buffer.readUInt32BE(0)
-      const payload = buffer.slice(4, 4 + len)
-
-      const [key, val] = decode(payload) as [string, string]
-      result[key] = JSON.parse(val)
-
-      buffer = buffer.slice(4 + len)
-    }
-    return result
-  } catch (err) {
-    console.log('Failed to read snapshot', err)
-  }
-  return undefined
-}
-
-/**
  * Create snapshot by aggregating events from providers into DB, then writing snapshot file.
  * @param createOptions
  * @param createOptions.chainID
@@ -242,8 +183,10 @@ async function createSnapshot (createOptions: {
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)
   ])
-  await writeSnapshot(db, snapshotFilename)
+
+  // Note: createSnapshot currently only stores events in DB
+  // Call encodeSnapshot separately if you need to write a snapshot file
   try { await (db as any).levelDB.close?.() } catch {}
 }
 
-export { createSnapshot, writeSnapshot, restoreSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes }
+export { createSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes }
