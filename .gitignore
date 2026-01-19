@@ -17,3 +17,7 @@ coverage
 *.gz
 *.db
 .env
+
+# Test fixtures dump
+test/.tmp
+test/fixtures/*.json

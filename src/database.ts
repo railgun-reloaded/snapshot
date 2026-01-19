@@ -1,60 +1,56 @@
-import { ClassicLevel } from 'classic-level'
-
-type Serializable = string | number | boolean | object | null
+type Serializable = string | number | boolean | bigint | object | null | Serializable[]
 
 /**
- * Railgun Database Instance
+ * Simple in-memory data store for snapshot operations, to be replaced with drizzle
  */
 class RailgunDB {
-  /**
-   * Name of Database
-   */
-  #dbName: string
+  #data = new Map<string, Serializable>()
 
   /**
-   * Instance of ClassicLevel Database
+   * Initialize the database
    */
-  #db: ClassicLevel
-
-  /**
-   * Initialize Railgun Event Database
-   * @param dbName - Name of Database
-   */
-  constructor (dbName: string) {
-    this.#dbName = dbName
-    this.#db = new ClassicLevel(this.#dbName)
+  constructor() {
   }
 
   /**
-   * Set the entry in the database
+   * Set a value in the store
    * @param key - Key to set
-   * @param values - Values for given key
+   * @param value - Value to store
    */
-  async set (key: string, values: Serializable) {
-    await this.#db.put(key, JSON.stringify(values, (_, v) => typeof (v) === 'bigint' ? v.toString() : v))
+  async set(key: string, value: Serializable) {
+    this.#data.set(key, value)
   }
 
   /**
-   * Get the value for given key
-   * @param key - Key to get from DB
-   * @returns - Values for given key
+   * Get a value from the store
+   * @param key - Key to retrieve
+   * @returns The stored value or null if not found
    */
-  async get<T=Serializable>(key: string) {
-    try {
-      const values = await this.#db.get(key)
-      if (values) { return JSON.parse(values) as T }
-    } catch {
-      console.log("Couldn't find key: ", key)
+  async get<T = Serializable>(key: string): Promise<T | null> {
+    return (this.#data.get(key) as T) ?? null
+  }
+
+  /**
+   * Iterate over all entries in the store
+   */
+  async *entries(): AsyncIterable<[string, Serializable]> {
+    for (const [key, value] of this.#data) {
+      yield [key, JSON.stringify(value)]
     }
-    return null
   }
 
   /**
-   * Get levelDB instance
-   * @returns LevelDB Instance
+   * Close the database (no-op for in-memory store)
    */
-  get levelDB () {
-    return this.#db
+  async close() {
+    // todo
+  }
+
+  /**
+   */
+  get levelDB() {
+    // todo: replace refactor
+    return this.#data
   }
 }
 
