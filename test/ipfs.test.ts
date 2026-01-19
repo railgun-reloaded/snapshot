@@ -3,13 +3,13 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/ipfs'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content'
 
 import { cleanup, makeTmpPath, writeFile } from './utils'
 
 test('computeRawCID deterministic for identical bytes', async () => {
-  const p1 = makeTmpPath('blob')
-  const p2 = makeTmpPath('blob')
+  const p1 = makeTmpPath('blob') + '/file.bin'
+  const p2 = makeTmpPath('blob') + '/file.bin'
   const data = Buffer.from('railgun-snapshot')
   writeFile(p1, data)
   writeFile(p2, data)
@@ -21,7 +21,7 @@ test('computeRawCID deterministic for identical bytes', async () => {
 })
 
 test('validateFileCID returns true for matching CID and false otherwise', async () => {
-  const p = makeTmpPath('blob')
+  const p = makeTmpPath('blob') + '/file.bin'
   writeFile(p, Buffer.from('railgun-cid-check'))
 
   const cid = await computeRawCID(p)
@@ -32,8 +32,8 @@ test('validateFileCID returns true for matching CID and false otherwise', async 
 })
 
 test('computeRawCID differs when content differs by one byte', async () => {
-  const p1 = makeTmpPath('blob')
-  const p2 = makeTmpPath('blob')
+  const p1 = makeTmpPath('blob') + '/file1.bin'
+  const p2 = makeTmpPath('blob') + '/file2.bin'
   writeFile(p1, Buffer.from('x'))
   writeFile(p2, Buffer.from('y'))
 
@@ -44,8 +44,8 @@ test('computeRawCID differs when content differs by one byte', async () => {
 })
 
 test('writeCarWithRoot produces CAR with root matching raw CID', async () => {
-  const p = makeTmpPath('blob')
-  const car = makeTmpPath('car') + '.car'
+  const p = makeTmpPath('blob') + '/file.bin'
+  const car = makeTmpPath('car') + '/archive.car'
   writeFile(p, Buffer.from('railgun-car'))
   const cid = await computeRawCID(p)
   await writeCarWithRoot(p, car)

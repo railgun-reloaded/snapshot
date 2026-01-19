@@ -5,8 +5,8 @@ const path = require('path')
 
 import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
 import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
-import { getNetworkConfigFromChainID } from '../src/network-config'
-import { RailgunDB } from '../src/database'
+import { getNetworkConfigFromChainID } from '../src/config'
+import { RailgunDB } from '../src/lib/database'
 import { minBigInts } from '../src/snapshot/utils'
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') })

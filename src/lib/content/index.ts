@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getMultiformats, getIPLD } from './formats'
+import { getMultiformats, getIPLD } from '../formats'
 
 async function computeRawCID (filePath: string): Promise<string> {
   const data = await fs.promises.readFile(filePath)

@@ -5,10 +5,10 @@ import { test } from 'brittle'
 // @ts-ignore - hook not in type definitions but exists in 3.19.0
 const { hook } = require('brittle')
 
-import { RailgunDB } from '../src/database'
-import { initializeFormats } from '../src/formats'
-import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/ipfs'
-import { decodeSnapshot, encodeSnapshot } from '../src/snapshot/snapshot'
+import { RailgunDB } from '../src/lib/database'
+import { initializeFormats } from '../src/lib/formats'
+import { computeDagCborCID, writeCarWithDagCborRoot } from '../src/lib/content'
+import { decodeSnapshot, encodeSnapshot } from '../src/snapshot/core'
 
 import { cleanup, makeTmpPath } from './utils'
 import { loadBlockchainEvents } from './fixtures'
