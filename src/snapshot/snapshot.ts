@@ -175,14 +175,12 @@ async function restoreSnapshot (filename = 'snapshot.rsnap') {
  * Create snapshot by aggregating events from providers into DB, then writing snapshot file.
  * @param createOptions
  * @param createOptions.chainID
- * @param createOptions.dbName
  * @param createOptions.snapshotFilename
  * @param createOptions.startHeight
  * @param createOptions.endHeight
  */
 async function createSnapshot (createOptions: {
   chainID: number;
-  dbName: string;
   snapshotFilename: string;
   startHeight?: bigint;
   endHeight?: bigint;
@@ -190,7 +188,7 @@ async function createSnapshot (createOptions: {
   // TODO: release scanner pls
   type EVMBlock = any
 
-  const { chainID, dbName, snapshotFilename } = createOptions
+  const { chainID, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
   const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
