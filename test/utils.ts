@@ -14,6 +14,8 @@ function cleanup (...paths: string[]) {
 }
 
 function writeFile (filePath: string, data: string | Buffer) {
+  const dir = path.dirname(filePath)
+  fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(filePath, data)
 }
 
