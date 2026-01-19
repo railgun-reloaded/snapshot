@@ -8,10 +8,8 @@ class RailgunDB {
 
   /**
    * Initialize the database
-   * @param _dbPath
-   * @param _opts -
    */
-  constructor(_dbPath?: string, _opts?: any) {
+  constructor() {
   }
 
   /**
