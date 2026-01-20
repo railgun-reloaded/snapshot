@@ -1,3 +1,5 @@
-export { createSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes } from './snapshot/core'
-export { computeDagCborCID, dagCborCIDFromBytes, dagCborCIDFromObject, computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithDagCborRoot } from './lib/content'
+export { createSnapshot, writeSnapshot, restoreSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes } from './snapshot/core'
+export { computeDagCborCID, dagCborCIDFromBytes, dagCborFromObject, computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithDagCborRoot } from './lib/content'
+export { RailgunDB } from './lib/database'
+export { initializeFormats } from './lib/formats'
 export type { SnapshotEVMLog, SnapshotEVMTransaction, SnapshotEVMBlock } from './snapshot/types'

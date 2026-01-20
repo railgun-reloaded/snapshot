@@ -95,11 +95,9 @@ async function dagCborCIDFromBytes (bytes: Uint8Array): Promise<string> {
  * @param obj - Input object to encode
  * @returns Encoded object and CID
  */
-async function dagCborCIDFromObject (obj: any): Promise<{ cid: string; bytes: Uint8Array }> {
+async function dagCborFromObject (obj: any): Promise<Uint8Array> {
   const { dagCbor } = getIPLD()
-  const bytes: Uint8Array = dagCbor.encode(obj)
-  const cid = await dagCborCIDFromBytes(bytes)
-  return { cid, bytes }
+  return dagCbor.encode(obj)
 }
 
 /**
@@ -124,4 +122,4 @@ async function writeCarWithDagCborRoot (filePath: string, carPath: string): Prom
   await fs.promises.writeFile(carPath, buf)
 }
 
-export { computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithDagCborRoot, computeDagCborCID, dagCborCIDFromBytes, dagCborCIDFromObject }
+export { computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithDagCborRoot, computeDagCborCID, dagCborCIDFromBytes, dagCborFromObject }

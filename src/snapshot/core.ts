@@ -1,6 +1,4 @@
-import fs, { createWriteStream } from 'fs'
-import { Readable } from 'stream'
-import { pipeline } from 'stream/promises'
+import fs from 'fs'
 import zlib from 'zlib'
 
 import dotenv from 'dotenv'
@@ -8,7 +6,7 @@ import type { Action, EVMBlock } from 'fafo-scanner'
 import { SubsquidProvider } from 'fafo-scanner'
 
 import { getNetworkConfigFromChainID } from '../config'
-import { dagCborCIDFromObject } from '../lib/content'
+import { dagCborCIDFromBytes, dagCborFromObject } from '../lib/content'
 import { RailgunDB } from '../lib/database'
 
 import { maxBigInts, minBigInts } from './utils'
@@ -97,17 +95,16 @@ async function encodeSnapshot (
     entryCount,
     blocks
   }
-  const { cid, bytes } = await dagCborCIDFromObject(root)
-
-  await pipeline(
-    Readable.from([bytes]),
-    zlib.createBrotliCompress({
-      params: {
-        [zlib.constants.BROTLI_PARAM_QUALITY]: 6
-      }
-    }),
-    createWriteStream(outPath)
-  )
+  const bytes = await dagCborFromObject(root)
+  const compressedData = zlib.brotliCompressSync(bytes, {
+    params: {
+      [zlib.constants.BROTLI_PARAM_QUALITY]: 6
+    }
+  })
+  const [cid] = await Promise.all([
+    dagCborCIDFromBytes(compressedData),
+    fs.promises.writeFile(outPath, compressedData),
+  ])
   return cid
 }
 
@@ -126,8 +123,8 @@ async function decodeSnapshot (filePath: string): Promise<{
 }> {
   const dagCbor = await import('@ipld/dag-cbor')
   const data = await fs.promises.readFile(filePath)
-  const root = dagCbor.decode(new Uint8Array(data)) as any
-  return root
+  const decompressedData = zlib.brotliDecompressSync(data)
+  return dagCbor.decode(decompressedData) as any
 }
 
 /**
