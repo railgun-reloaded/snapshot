@@ -4,8 +4,8 @@
   "description": "A package to create snapshot of railgun events for data-sync",
   "main": "src/index.js",
   "scripts": {
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
+    "lint": "eslint src/",
+    "lint:fix": "eslint --fix src/",
     "build": "tsc --build",
     "clean": "tsc --build --clean",
     "pretest": "npm run build",
