@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs, { createWriteStream } from 'fs'
 
 import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
@@ -7,8 +7,11 @@ import type { Action, EVMBlock } from 'fafo-scanner'
 
 import { RailgunDB } from '../lib/database'
 import { dagCborCIDFromObject } from '../lib/content'
+import zlib from 'zlib'
 import { getNetworkConfigFromChainID } from '../config'
 import { maxBigInts, minBigInts } from './utils'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
 
 dotenv.config()
 
@@ -17,7 +20,7 @@ dotenv.config()
  * @param railgunDB - Railgun DB Instance
  * @param filename - Output snapshot filename
  */
-async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
+async function writeSnapshot(railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
   // base method for writing events to db, still needs work
   const outFile = fs.createWriteStream(filename)
   for await (const [key, val] of railgunDB.entries()) {
@@ -41,47 +44,17 @@ async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap')
  * @param meta.endHeight
  * @returns computed CID string for the DAG-CBOR root
  */
-async function encodeSnapshot (
+async function encodeSnapshot(
   railgunDB: RailgunDB,
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
 ): Promise<string> {
-  // todo: check if this is a required thing to sort or not
   const rawBlocks = await railgunDB.get<any[]>('events') ?? []
   const blocks = rawBlocks.filter((blk: any) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
   })
-  /*
-  const blocks: SnapshotEVMBlock[] = filteredBlocks.map((blk: any) => {
-    const txs = Array.isArray(blk.transactions) ? blk.transactions : []
-    const transactions: SnapshotEVMTransaction[] = txs.map((tx: any) => {
-      const logsIn = Array.isArray(tx.logs) ? tx.logs : []
-      const logs: SnapshotEVMLog[] = logsIn.map((log: any) => ({
-        index: Number(log.index),
-        address: normalizeHexString(String(log.address)),
-        name: String(log.name),
-        args: canonicalizeValue(log.args ?? {}) as Record<string, any>
-      }))
-      logs.sort((a, b) => a.index - b.index)
-      return {
-        hash: normalizeHexString(String(tx.hash)),
-        index: Number(tx.index),
-        from: normalizeHexString(String(tx.from)),
-        logs
-      }
-    })
-    transactions.sort((a, b) => a.index - b.index)
-    return {
-      number: BigInt(blk.number),
-      hash: normalizeHexString(String(blk.hash)),
-      timestamp: BigInt(blk.timestamp),
-      transactions,
-      internalTransaction: Array.isArray(blk.internalTransaction) ? blk.internalTransaction : []
-    }
-  })
-  blocks.sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0))
-  */
+
   const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t: any, tx: { actions: Action[][] }) => t + tx.actions.flat().length, 0), 0)
   const root = {
     version: 1,
@@ -91,9 +64,17 @@ async function encodeSnapshot (
     entryCount,
     blocks
   }
-
   const { cid, bytes } = await dagCborCIDFromObject(root)
-  await fs.promises.writeFile(outPath, Buffer.from(bytes))
+
+  await pipeline(
+    Readable.from([bytes]),
+    zlib.createBrotliCompress({
+      params: {
+        [zlib.constants.BROTLI_PARAM_QUALITY]: 6
+      }
+    }),
+    createWriteStream(outPath)
+  );
   return cid
 }
 
@@ -101,7 +82,7 @@ async function encodeSnapshot (
  * Decode a DAG-CBOR snapshot file to root object with blocks
  * @param filePath
  */
-async function decodeSnapshot (filePath: string): Promise<{
+async function decodeSnapshot(filePath: string): Promise<{
   version: number
   chainID: number
   startHeight: bigint
@@ -119,7 +100,7 @@ async function decodeSnapshot (filePath: string): Promise<{
  * Decode DAG-CBOR root from raw bytes (for readFromSnapshot(CID) via IPFS fetch)
  * @param bytes
  */
-async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
+async function decodeSnapshotFromBytes(bytes: Uint8Array): Promise<{
   version: number
   chainID: number
   startHeight: number | bigint
@@ -136,7 +117,7 @@ async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
  * @param filename - Snapshot file name (uncompressed)
  * @returns Key value pair stored in the snapshot
  */
-async function restoreSnapshot (filename = 'snapshot.rsnap') {
+async function restoreSnapshot(filename = 'snapshot.rsnap') {
   if (!fs.existsSync(filename)) {
     throw new Error("File doesn't exists")
   }
@@ -153,7 +134,7 @@ async function restoreSnapshot (filename = 'snapshot.rsnap') {
       stream.on('error', (err) => reject(err))
     })
 
-    const result : Record<string, any> = {}
+    const result: Record<string, any> = {}
     while (buffer.length > 0) {
       const len = buffer.readUInt32BE(0)
       const payload = buffer.slice(4, 4 + len)
@@ -179,7 +160,7 @@ async function restoreSnapshot (filename = 'snapshot.rsnap') {
  * @param createOptions.startHeight
  * @param createOptions.endHeight
  */
-async function createSnapshot (createOptions: {
+async function createSnapshot(createOptions: {
   chainID: number;
   dbName: string;
   snapshotFilename: string;
@@ -192,7 +173,7 @@ async function createSnapshot (createOptions: {
   const { chainID, dbName, snapshotFilename } = createOptions
   if (!chainID) throw new Error('ChainID is not defined')
 
-  const { rpcURL, subsquidURL, deploymentBlock} = getNetworkConfigFromChainID(chainID)
+  const { rpcURL, subsquidURL, deploymentBlock } = getNetworkConfigFromChainID(chainID)
 
   if (!rpcURL) {
     throw new Error('Network RPC URL is not defined')
@@ -241,7 +222,7 @@ async function createSnapshot (createOptions: {
     db.set('events', events)
   ])
   await writeSnapshot(db, snapshotFilename)
-  try { await (db as any).levelDB.close?.() } catch {}
+  try { await (db as any).levelDB.close?.() } catch { }
 }
 
 export { createSnapshot, writeSnapshot, restoreSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes }
