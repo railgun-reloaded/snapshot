@@ -1,17 +1,18 @@
 import fs, { createWriteStream } from 'fs'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import zlib from 'zlib'
 
 import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
-import { SubsquidProvider } from 'fafo-scanner'
 import type { Action, EVMBlock } from 'fafo-scanner'
+import { SubsquidProvider } from 'fafo-scanner'
 
-import { RailgunDB } from '../lib/database'
-import { dagCborCIDFromObject } from '../lib/content'
-import zlib from 'zlib'
 import { getNetworkConfigFromChainID } from '../config'
+import { dagCborCIDFromObject } from '../lib/content'
+import { RailgunDB } from '../lib/database'
+
 import { maxBigInts, minBigInts } from './utils'
-import { Readable } from 'stream'
-import { pipeline } from 'stream/promises'
 
 dotenv.config()
 
@@ -20,7 +21,7 @@ dotenv.config()
  * @param railgunDB - Railgun DB Instance
  * @param filename - Output snapshot filename
  */
-async function writeSnapshot(railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
+async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
   // base method for writing events to db, still needs work
   const outFile = fs.createWriteStream(filename)
   for await (const [key, val] of railgunDB.entries()) {
@@ -39,12 +40,12 @@ async function writeSnapshot(railgunDB: RailgunDB, filename = 'snapshot.rsnap') 
  * @param railgunDB - DB instance containing 'events' array
  * @param outPath - output .rsnap path (DAG-CBOR encoded root)
  * @param meta - chain and range metadata
- * @param meta.chainID
- * @param meta.startHeight
- * @param meta.endHeight
+ * @param meta.chainID - ChainID of the chain to create snapshot
+ * @param meta.startHeight - Starting height of the ouput snapshot
+ * @param meta.endHeight - End height of the output snapshot
  * @returns computed CID string for the DAG-CBOR root
  */
-async function encodeSnapshot(
+async function encodeSnapshot (
   railgunDB: RailgunDB,
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
@@ -74,15 +75,16 @@ async function encodeSnapshot(
       }
     }),
     createWriteStream(outPath)
-  );
+  )
   return cid
 }
 
 /**
  * Decode a DAG-CBOR snapshot file to root object with blocks
- * @param filePath
+ * @param filePath - Filepath to the encoded snapshot
+ * @returns - Decoded snapshot data
  */
-async function decodeSnapshot(filePath: string): Promise<{
+async function decodeSnapshot (filePath: string): Promise<{
   version: number
   chainID: number
   startHeight: bigint
@@ -98,9 +100,10 @@ async function decodeSnapshot(filePath: string): Promise<{
 
 /**
  * Decode DAG-CBOR root from raw bytes (for readFromSnapshot(CID) via IPFS fetch)
- * @param bytes
+ * @param bytes - Input dagCbor encoded snapshot bytes
+ * @returns - Decoded snapshot data
  */
-async function decodeSnapshotFromBytes(bytes: Uint8Array): Promise<{
+async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
   version: number
   chainID: number
   startHeight: number | bigint
@@ -117,7 +120,7 @@ async function decodeSnapshotFromBytes(bytes: Uint8Array): Promise<{
  * @param filename - Snapshot file name (uncompressed)
  * @returns Key value pair stored in the snapshot
  */
-async function restoreSnapshot(filename = 'snapshot.rsnap') {
+async function restoreSnapshot (filename = 'snapshot.rsnap') {
   if (!fs.existsSync(filename)) {
     throw new Error("File doesn't exists")
   }
@@ -153,14 +156,14 @@ async function restoreSnapshot(filename = 'snapshot.rsnap') {
 
 /**
  * Create snapshot by aggregating events from providers into DB, then writing snapshot file.
- * @param createOptions
- * @param createOptions.chainID
- * @param createOptions.dbName
- * @param createOptions.snapshotFilename
- * @param createOptions.startHeight
- * @param createOptions.endHeight
+ * @param createOptions - Snapshot create options
+ * @param createOptions.chainID - ChainID
+ * @param createOptions.dbName - Database name
+ * @param createOptions.snapshotFilename - Output snapshot filename
+ * @param createOptions.startHeight - Starting height of the output snapshot
+ * @param createOptions.endHeight - End height of the output snapshot
  */
-async function createSnapshot(createOptions: {
+async function createSnapshot (createOptions: {
   chainID: number;
   dbName: string;
   snapshotFilename: string;

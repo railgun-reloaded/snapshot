@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/consistent-type-imports */
 type MultiformatsModule = typeof import('multiformats')
 type RawCodec = typeof import('multiformats/codecs/raw')
 type Sha256Hasher = typeof import('multiformats/hashes/sha2')
@@ -10,6 +11,9 @@ interface MultiformatsAPI {
 
 let multiformatsAPI: MultiformatsAPI | null = null
 
+/**
+ * Initialize Multiformats
+ */
 async function initializeMultiformats (): Promise<void> {
   if (multiformatsAPI) return
 
@@ -26,6 +30,10 @@ async function initializeMultiformats (): Promise<void> {
   }
 }
 
+/**
+ * Get MultiformatsAPI instance
+ * @returns MultiFormatsAPI instance
+ */
 function getMultiformats (): MultiformatsAPI {
   if (!multiformatsAPI) {
     throw new Error('Multiformats not initialized. Call initializeMultiformats() first.')
@@ -33,6 +41,10 @@ function getMultiformats (): MultiformatsAPI {
   return multiformatsAPI
 }
 
+/**
+ * Check initialization status of MultiformatAPI
+ * @returns Initialization status of MultiFormatAPI
+ */
 function isInitialized (): boolean {
   return multiformatsAPI !== null
 }

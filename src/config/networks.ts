@@ -3,13 +3,17 @@ enum NetworkName {
   Polygon
 }
 
-function getNetworkConfig() {
+/**
+ * Get Network Config for all the supported networks
+ * @returns - NetworkConfig for supported networks
+ */
+function getNetworkConfig () {
   return {
     [NetworkName.Ethereum]: {
       name: 'ethereum',
       proxyAddress: '0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9',
       deploymentBlock: 14737691n,
-      subsquidURL: 'https://378c7df9-13ab-48ef-a7fb-68f71af5fc6f.squids.live/squid-railgun-ethereum-test@v1/api/graphql',
+      subsquidURL: 'http://localhost:4350/graphql',
       rpcURL: process.env['RPC_ETH_URL']
     },
     [NetworkName.Polygon]: {

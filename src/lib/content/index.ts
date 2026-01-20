@@ -1,7 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getMultiformats, getIPLD } from '../formats/'
 
+import { getIPLD, getMultiformats } from '../formats/'
+
+/**
+ * Compute CID from the file
+ * @param filePath - Input file to compute CID
+ * @returns Computed CID
+ */
 async function computeRawCID (filePath: string): Promise<string> {
   const data = await fs.promises.readFile(filePath)
   const { CID, raw, sha256 } = getMultiformats()
@@ -10,6 +16,11 @@ async function computeRawCID (filePath: string): Promise<string> {
   return cid.toString()
 }
 
+/**
+ * Compute CID from DigestBytes
+ * @param digestBytes - Input digest bytes
+ * @returns Computed CID
+ */
 async function rawCIDFromDigestBytes (digestBytes: Uint8Array): Promise<string> {
   const { CID, raw } = getMultiformats()
   const { create: createDigest } = await import('multiformats/hashes/digest')
@@ -19,11 +30,22 @@ async function rawCIDFromDigestBytes (digestBytes: Uint8Array): Promise<string> 
   return cid.toString()
 }
 
+/**
+ * Validate CID for given file
+ * @param filePath - Input file path
+ * @param expectedCid - Expected CID for given file path
+ * @returns True if expected CID is equal to computed CID, else false
+ */
 async function validateFileCID (filePath: string, expectedCid: string): Promise<boolean> {
   const cid = await computeRawCID(filePath)
   return cid === expectedCid
 }
 
+/**
+ * Write CAR object with root
+ * @param filePath - Input filepath
+ * @param carPath - Output CAR Path
+ */
 async function writeCarWithRoot (filePath: string, carPath: string): Promise<void> {
   const data = await fs.promises.readFile(filePath)
   const { CID, raw, sha256 } = getMultiformats()
@@ -41,6 +63,11 @@ async function writeCarWithRoot (filePath: string, carPath: string): Promise<voi
   await fs.promises.writeFile(carPath, buf)
 }
 
+/**
+ * Compute CID from encoded dagCbor data
+ * @param filePath - Path to the file with encoded dagCbor
+ * @returns - Computed CID
+ */
 async function computeDagCborCID (filePath: string): Promise<string> {
   const data = await fs.promises.readFile(filePath)
   const { dagCbor } = getIPLD()
@@ -50,6 +77,11 @@ async function computeDagCborCID (filePath: string): Promise<string> {
   return cid.toString()
 }
 
+/**
+ * Compute CID from dagCbor encoded bytes
+ * @param bytes - Input dagCbor bytes
+ * @returns - Computed CID
+ */
 async function dagCborCIDFromBytes (bytes: Uint8Array): Promise<string> {
   const { dagCbor } = getIPLD()
   const { CID, sha256 } = getMultiformats()
@@ -58,6 +90,11 @@ async function dagCborCIDFromBytes (bytes: Uint8Array): Promise<string> {
   return cid.toString()
 }
 
+/**
+ * Encode input object using dagCbor and compute CID
+ * @param obj - Input object to encode
+ * @returns Encoded object and CID
+ */
 async function dagCborCIDFromObject (obj: any): Promise<{ cid: string; bytes: Uint8Array }> {
   const { dagCbor } = getIPLD()
   const bytes: Uint8Array = dagCbor.encode(obj)
@@ -65,6 +102,11 @@ async function dagCborCIDFromObject (obj: any): Promise<{ cid: string; bytes: Ui
   return { cid, bytes }
 }
 
+/**
+ * Write CAR object with dagCborRoot
+ * @param filePath - Input filepath
+ * @param carPath - Output CAR Path
+ */
 async function writeCarWithDagCborRoot (filePath: string, carPath: string): Promise<void> {
   const data = await fs.promises.readFile(filePath)
   const { dagCbor, car } = getIPLD()

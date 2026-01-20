@@ -3,13 +3,12 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { RailgunDB } from '../src/lib/database'
 import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content'
-import { writeSnapshot } from '../src/snapshot/core'
+import { RailgunDB } from '../src/lib/database'
 import { initializeFormats } from '../src/lib/formats'
+import { writeSnapshot } from '../src/snapshot/core'
 
 import { cleanup, makeTmpPath, writeFile } from './utils'
-
 
 test('computeRawCID deterministic for identical bytes', async () => {
   await initializeFormats()

@@ -1,6 +1,5 @@
-import { initializeIPLD, isInitialized as isIPLDInitialized, getIPLD } from './ipld'
-import { initializeMultiformats, isInitialized as isMultiformatsInitialized, getMultiformats } from './multiformats'
-
+import { getIPLD, initializeIPLD, isInitialized as isIPLDInitialized } from './ipld'
+import { getMultiformats, initializeMultiformats, isInitialized as isMultiformatsInitialized } from './multiformats'
 
 // dev-note;
 // we don't really wanna change our commonjs ... thing is, most ipld/multiformats packages are esm only
@@ -11,6 +10,9 @@ import { initializeMultiformats, isInitialized as isMultiformatsInitialized, get
 // so I'd thoguht probably this is cleaner and gives us the same flexibility for handling imports like we do everywhere else
 // only con is that we need to run this function at  start (its ugly) (i know) (I want to remove trust me)
 // alternative: ipfs-car ??
+/**
+ * Initialize Formats
+ */
 async function initializeFormats (): Promise<void> {
   await Promise.all([
     initializeMultiformats(),
@@ -18,6 +20,10 @@ async function initializeFormats (): Promise<void> {
   ])
 }
 
+/**
+ * Get initialization status of formats
+ * @returns  Return initialization status of formats
+ */
 function isFormatsInitialized (): boolean {
   return isMultiformatsInitialized() && isIPLDInitialized()
 }

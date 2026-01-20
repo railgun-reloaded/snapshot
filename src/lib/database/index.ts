@@ -4,14 +4,18 @@ type Serializable = string | number | boolean | object | null
  * Simple in-memory data store for snapshot operations, to be replaced with drizzle
  */
 class RailgunDB {
+  /**
+   * Store any key value pair
+   */
   #data = new Map<string, any>()
 
   /**
    * Initialize the database
-   * @param _dbPath
-   * @param _opts -
+   * @param _dbPath - DB path
+   * @param _opts - DB initialization options
    */
-  constructor(_dbPath?: string, _opts?: any) {
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor (_dbPath?: string, _opts?: any) {
   }
 
   /**
@@ -19,7 +23,7 @@ class RailgunDB {
    * @param key - Key to set
    * @param value - Value to store
    */
-  async set(key: string, value: Serializable) {
+  async set (key: string, value: Serializable) {
     this.#data.set(key, value)
   }
 
@@ -34,8 +38,10 @@ class RailgunDB {
 
   /**
    * Iterate over all entries in the store
+   * @returns - Key value iterator over the entries
+   * @yields - Key value pair for entries
    */
-  async *entries(): AsyncIterable<[string, any]> {
+  async * entries (): AsyncIterable<[string, any]> {
     for (const [key, value] of this.#data) {
       yield [key, JSON.stringify(value)]
     }
@@ -44,15 +50,8 @@ class RailgunDB {
   /**
    * Close the database (no-op for in-memory store)
    */
-  async close() {
+  async close () {
     // todo
-  }
-
-  /**
-   */
-  get levelDB() {
-    // todo: replace refactor
-    return this.#data
   }
 }
 
