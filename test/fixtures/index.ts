@@ -27,7 +27,8 @@ interface BlockchainEventData {
 let eventData: BlockchainEventData | null = null
 
 /**
- *
+ * Load blockchain event data from the dump file
+ * @returns BlockchainEventData representation of dump file
  */
 export function loadBlockchainEvents (): BlockchainEventData {
   if (!eventData) {

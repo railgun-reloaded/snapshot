@@ -16,8 +16,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') })
 async function eventsDump(options: any) {
   const {
     chainID = 1,
-    startBlock = 17000000n,
-    endBlock = 17010000n,
+    startBlock = 15766005n,
+    endBlock = 16195440,
     outputFile = '../test/fixtures/events_dump.json'
   } = options
 
