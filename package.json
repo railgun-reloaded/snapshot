@@ -32,7 +32,6 @@
   "dependencies": {
     "@ipld/car": "^5.3.3",
     "@ipld/dag-cbor": "^9.2.5",
-    "@msgpack/msgpack": "^3.1.2",
     "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master",
     "dotenv": "^17.2.3",
     "fafo-scanner": "https://github.com/railgun-reloaded/scanner.git#feat/enhance-data-structure",

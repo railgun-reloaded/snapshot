@@ -1,7 +1,6 @@
 import fs from 'fs'
 import zlib from 'zlib'
 
-import { decode, encode } from '@msgpack/msgpack'
 import dotenv from 'dotenv'
 import type { Action, EVMBlock } from 'fafo-scanner'
 import { SubsquidProvider } from 'fafo-scanner'
@@ -15,35 +14,17 @@ import { maxBigInts, minBigInts } from './utils'
 dotenv.config()
 
 /**
- * Create snapshot from RailgunDB Instance
- * @param railgunDB - Railgun DB Instance
- * @param filename - Output snapshot filename
- */
-async function writeSnapshot (railgunDB: RailgunDB, filename = 'snapshot.rsnap') {
-  // base method for writing events to db, still needs work
-  const outFile = fs.createWriteStream(filename)
-  for await (const [key, val] of railgunDB.entries()) {
-    const entry = encode([key, val])
-    const len = Buffer.alloc(4)
-    len.writeUInt32BE(entry.length, 0)
-    outFile.write(len)
-    outFile.write(entry)
-  }
-  outFile.end()
-  await new Promise<void>(resolve => outFile.on('finish', () => resolve()))
-}
-
-/**
- * Create a canonical DAG-CBOR snapshot file with blocks/tx/logs
+ * Encode railgun events into DAG-CBOR and compress it using brotli compression. Also calculate
+ * CID and write the compressed data into outPath
  * @param railgunDB - DB instance containing 'events' array
- * @param outPath - output .rsnap path (DAG-CBOR encoded root)
+ * @param outPath - output .rsnap path
  * @param meta - chain and range metadata
  * @param meta.chainID - ChainID of the chain to create snapshot
  * @param meta.startHeight - Starting height of the ouput snapshot
  * @param meta.endHeight - End height of the output snapshot
- * @returns computed CID string for the DAG-CBOR root
+ * @returns computed CID string for the file
  */
-async function encodeSnapshot (
+async function writeSnapshot (
   railgunDB: RailgunDB,
   outPath: string,
   meta: { chainID: number; startHeight: bigint; endHeight: bigint }
@@ -77,7 +58,8 @@ async function encodeSnapshot (
 }
 
 /**
- * Decode a DAG-CBOR snapshot file to root object with blocks
+ * Decode a compressed DAG-CBOR snapshot into metaData and eventBlocks
+ * from file
  * @param filePath - Filepath to the encoded snapshot
  * @returns - Decoded snapshot data
  */
@@ -93,62 +75,6 @@ async function decodeSnapshot (filePath: string): Promise<{
   const data = await fs.promises.readFile(filePath)
   const decompressedData = zlib.brotliDecompressSync(data)
   return dagCbor.decode(decompressedData) as any
-}
-
-/**
- * Decode DAG-CBOR root from raw bytes (for readFromSnapshot(CID) via IPFS fetch)
- * @param bytes - Input dagCbor encoded snapshot bytes
- * @returns - Decoded snapshot data
- */
-async function decodeSnapshotFromBytes (bytes: Uint8Array): Promise<{
-  version: number
-  chainID: number
-  startHeight: number | bigint
-  endHeight: number | bigint
-  entryCount: number
-  blocks: EVMBlock[]
-}> {
-  const dagCbor = await import('@ipld/dag-cbor')
-  return dagCbor.decode(bytes) as any
-}
-
-/**
- * Restore snapshot from the file
- * @param filename - Snapshot file name (uncompressed)
- * @returns Key value pair stored in the snapshot
- */
-async function restoreSnapshot (filename = 'snapshot.rsnap') {
-  if (!fs.existsSync(filename)) {
-    throw new Error("File doesn't exists")
-  }
-
-  const stream = fs.createReadStream(filename)
-  let buffer = Buffer.alloc(0)
-  try {
-    await new Promise<void>((resolve, reject) => {
-      stream.on('data', (chunk) => {
-        const b = typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer)
-        buffer = Buffer.concat([buffer, b])
-      })
-      stream.on('end', () => resolve())
-      stream.on('error', (err) => reject(err))
-    })
-
-    const result: Record<string, any> = {}
-    while (buffer.length > 0) {
-      const len = buffer.readUInt32BE(0)
-      const payload = buffer.slice(4, 4 + len)
-
-      const [key, val] = decode(payload) as [string, string]
-      result[key] = JSON.parse(val)
-
-      buffer = buffer.slice(4 + len)
-    }
-    return result
-  } catch (err) {
-    console.log('Failed to read snapshot', err)
-  }
-  return undefined
 }
 
 /**
@@ -221,8 +147,13 @@ async function createSnapshot (createOptions: {
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)
   ])
-  await writeSnapshot(db, snapshotFilename)
+
+  await writeSnapshot(db, snapshotFilename, {
+    chainID,
+    startHeight,
+    endHeight
+  })
   try { await (db as any).levelDB.close?.() } catch { }
 }
 
-export { createSnapshot, writeSnapshot, restoreSnapshot, encodeSnapshot, decodeSnapshot, decodeSnapshotFromBytes }
+export { createSnapshot, writeSnapshot, decodeSnapshot }

@@ -43,7 +43,7 @@ class RailgunDB {
    */
   async * entries (): AsyncIterable<[string, any]> {
     for (const [key, value] of this.#data) {
-      yield [key, JSON.stringify(value)]
+      yield [key, value]
     }
   }
 
