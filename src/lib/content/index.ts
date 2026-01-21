@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getIPLD, getMultiformats } from '../formats/'
+import { getIPLD, getMultiformats } from '../formats'
 
 /**
  * Compute CID from the file

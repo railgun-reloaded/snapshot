@@ -46,6 +46,7 @@ export function loadBlockchainEvents (): BlockchainEventData {
       const parsed = JSON.parse(rawData)
 
       if (Array.isArray(parsed)) {
+        // squid format
         eventData = {
           metadata: {
             chainID: 1,
@@ -56,7 +57,7 @@ export function loadBlockchainEvents (): BlockchainEventData {
             blocksWithEvents: parsed.length,
             totalEvents: parsed.reduce((sum: number, block: any) =>
               sum + (block.transactions?.reduce((txSum: number, tx: any) =>
-                txSum + (tx.logs?.length || 0), 0) || 0), 0),
+                txSum + tx.actions.flat().length))),
             extractedAt: new Date().toISOString(),
             networkConfig: {
               rpcURL: 'test',

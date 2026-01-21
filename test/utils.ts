@@ -9,8 +9,7 @@ import path from 'node:path'
 function makeTmpPath (prefix: string) {
   const dir = path.join(process.cwd(), 'test', '.tmp')
   fs.mkdirSync(dir, { recursive: true })
-  const name = `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
-  return path.join(dir, name)
+  return fs.mkdtempSync(path.join(dir, `${prefix}-`))
 }
 
 /**
@@ -29,6 +28,8 @@ function cleanup (...paths: string[]) {
  * @param data - Content of the file
  */
 function writeFile (filePath: string, data: string | Buffer) {
+  const dir = path.dirname(filePath)
+  fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(filePath, data)
 }
 

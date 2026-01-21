@@ -35,7 +35,7 @@ async function writeSnapshot (
     return blockNumber >= meta.startHeight && blockNumber <= meta.endHeight
   })
 
-  const entryCount = blocks.reduce((acc, b) => acc + b.transactions.reduce((t: any, tx: { actions: Action[][] }) => t + tx.actions.flat().length, 0), 0)
+  const entryCount = blocks.reduce((acc, b) => acc + (b.transactions?.reduce((t: any, tx: { actions: Action[][] }) => t + tx.actions.flat().length, 0) ?? 0), 0)
   const root = {
     version: 1,
     chainID: meta.chainID,

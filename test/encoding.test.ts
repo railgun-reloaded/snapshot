@@ -9,7 +9,8 @@ import { initializeFormats } from '../src/lib/formats'
 import { decodeSnapshot, writeSnapshot } from '../src/snapshot/core'
 
 import { loadBlockchainEvents } from './fixtures'
-import { cleanup, makeTmpPath } from './utils'
+import { TEST_VECTOR_EVENTS3 } from './test-vectors'
+import { cleanup, exists, makeTmpPath } from './utils'
 
 // @ts-ignore - hook not in type definitions but exists in 3.19.0
 const { hook } = require('brittle')
@@ -33,7 +34,7 @@ test('Snapshot basic encoding', async (t) => {
   t.test('should return CID and computeDagCborCID(out) should match', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
 
     await db.set('events', rgEvents)
 
@@ -60,10 +61,10 @@ test('Snapshot basic encoding', async (t) => {
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
 
     const blockNumber = rgEvents[0].number
@@ -81,7 +82,7 @@ test('Snapshot basic encoding', async (t) => {
     const dbPath = makeTmpPath('db')
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
 
     // Store all events in database, then snapshot different ranges
     await db.set('events', rgEvents)
@@ -100,7 +101,7 @@ test('Snapshot .CAR Integration', async (t) => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const car = makeTmpPath('car') + '.car'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
 
     const data = loadBlockchainEvents()
     const firstBlock = {
@@ -130,7 +131,7 @@ test('Snapshot misc scenarios ', async (t) => {
   t.test('should handle empty events array', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
     await db.set('events', [])
 
     const cid = await writeSnapshot(db, out, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
@@ -149,7 +150,7 @@ test('Snapshot misc scenarios ', async (t) => {
   t.test('should handle null/undefined events', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
     await db.set('events', null)
 
     await writeSnapshot(db, out, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
@@ -163,7 +164,7 @@ test('Snapshot misc scenarios ', async (t) => {
   t.test('should handle blocks with empty transactions', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB(dbPath)
+    const db = new RailgunDB()
 
     const data = loadBlockchainEvents()
     const emptyBlock = {
@@ -191,11 +192,11 @@ test('Snapshot encoding determinism', async (t) => {
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[0].number })
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number })
 
@@ -210,11 +211,11 @@ test('Snapshot encoding determinism', async (t) => {
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
@@ -231,15 +232,15 @@ test('Snapshot encoding determinism', async (t) => {
     const out2 = makeTmpPath('snap') + '.rsnap'
     const out3 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number, endHeight: rgEvents[Math.min(3, rgEvents.length - 1)].number })
 
-    const db3 = new RailgunDB(dbPath3)
+    const db3 = new RailgunDB()
     await db3.set('events', rgEvents)
     const cid3 = await writeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number, endHeight: rgEvents[Math.min(4, rgEvents.length - 1)].number })
 
@@ -256,11 +257,11 @@ test('Snapshot encoding determinism', async (t) => {
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[3].number, endHeight: rgEvents[Math.min(8, rgEvents.length - 1)].number })
 
@@ -277,15 +278,15 @@ test('Snapshot encoding determinism', async (t) => {
     const out2 = makeTmpPath('snap') + '.rsnap'
     const out3 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(1, rgEvents.length - 1)].number })
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(2, rgEvents.length - 1)].number })
 
-    const db3 = new RailgunDB(dbPath3)
+    const db3 = new RailgunDB()
     await db3.set('events', rgEvents)
     const cid3 = await writeSnapshot(db3, out3, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[Math.min(10, rgEvents.length - 1)].number })
 
@@ -302,7 +303,7 @@ test('Snapshot encoding determinism', async (t) => {
     const out1 = makeTmpPath('snap') + '.rsnap'
     const out2 = makeTmpPath('snap') + '.rsnap'
 
-    const db1 = new RailgunDB(dbPath1)
+    const db1 = new RailgunDB()
     await db1.set('events', rgEvents)
     const startTime = Date.now()
     const cid1 = await writeSnapshot(db1, out1, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[rgEvents.length - 1].number })
@@ -310,7 +311,7 @@ test('Snapshot encoding determinism', async (t) => {
 
     assert.ok(duration < 10000, `Large range took too long: ${duration}ms`)
 
-    const db2 = new RailgunDB(dbPath2)
+    const db2 = new RailgunDB()
     await db2.set('events', rgEvents)
     const cid2 = await writeSnapshot(db2, out2, { chainID: 1, startHeight: rgEvents[0].number, endHeight: rgEvents[rgEvents.length - 1].number })
 
@@ -324,5 +325,105 @@ test('Snapshot encoding determinism', async (t) => {
     assert.equal(BigInt(root.endHeight), rgEvents[rgEvents.length - 1].number)
 
     cleanup(dbPath1, dbPath2, out1, out2)
+  })
+
+  test('writeSnapshot and recover it to entries', async (assert) => {
+    const dbPath = makeTmpPath('db')
+    const outFile = makeTmpPath('snapshot') + '.rsnap'
+    const db = new RailgunDB(dbPath)
+    await db.set('latestHeight', '16195440n')
+
+    await db.set('events', TEST_VECTOR_EVENTS3)
+
+    // Encode snapshot
+    await writeSnapshot(db, outFile, {
+      chainID: 1,
+      startHeight: 15821476n,
+      endHeight: 15821513n
+    })
+
+    assert.ok(exists(outFile), 'snapshot file should exist')
+
+    const restored = await decodeSnapshot(outFile)
+    assert.ok(restored, 'restored object should be defined')
+
+    assert.alike.coercively(TEST_VECTOR_EVENTS3, restored.blocks, 'restored object must be same as actual object')
+
+    cleanup(dbPath, outFile)
+  })
+})
+
+test('Snapshot error handling', async (t) => {
+  t.test('should handle invalid block range (startHeight > endHeight)', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+    await db.set('events', rgEvents)
+
+    // Should still create snapshot but with no blocks
+    const cid = await writeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 99999999n,
+      endHeight: 1n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 0)
+    assert.equal(root.entryCount, 0)
+
+    cleanup(dbPath, out)
+  })
+
+  t.test('should handle malformed block data gracefully', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+
+    // Malformed data: missing transactions array
+    const malformedBlock = {
+      number: 12345,
+      hash: '0xabc',
+      timestamp: 1234567890,
+      // transactions: missing
+    }
+
+    await db.set('events', [malformedBlock])
+
+    const cid = await writeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 12345n,
+      endHeight: 12345n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 1)
+    assert.equal(root.blocks[0]!.transactions, undefined)
+
+    cleanup(dbPath, out)
+  })
+
+  t.test('should handle blocks outside requested range', async () => {
+    const dbPath = makeTmpPath('db')
+    const out = makeTmpPath('snap') + '.rsnap'
+    const db = new RailgunDB()
+    await db.set('events', rgEvents)
+
+    // Request range that doesn't exist in data
+    const cid = await writeSnapshot(db, out, {
+      chainID: 1,
+      startHeight: 99999990n,
+      endHeight: 99999999n
+    })
+
+    assert.ok(cid)
+    const root = await decodeSnapshot(out)
+    assert.equal(root.blocks.length, 0)
+    assert.equal(root.entryCount, 0)
+    assert.equal(BigInt(root.startHeight), 99999990n)
+    assert.equal(BigInt(root.endHeight), 99999999n)
+
+    cleanup(dbPath, out)
   })
 })
