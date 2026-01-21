@@ -3,11 +3,12 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
+import { writeSnapshot } from '../src'
 import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content'
 import { RailgunDB } from '../src/lib/database'
 import { initializeFormats } from '../src/lib/formats'
-import { writeSnapshot } from '../src/snapshot/core'
 
+import { TEST_VECTOR_EVENTS } from './test-vectors'
 import { cleanup, makeTmpPath, writeFile } from './utils'
 
 test('computeRawCID deterministic for identical bytes', async () => {
@@ -46,6 +47,34 @@ test('computeRawCID differs when content differs by one byte', async () => {
   cleanup(p1, p2)
 })
 
+<<<<<<< HEAD
+=======
+test('computeRawCID on .rsnap produced by writeSnapshot is stable', async () => {
+  await initializeFormats()
+  const dbPath = makeTmpPath('db')
+  const out1 = makeTmpPath('snap') + '.rsnap'
+  const out2 = makeTmpPath('snap') + '.rsnap'
+  const db = new RailgunDB(dbPath)
+  await db.set('latestHeight', '1')
+
+  await db.set('events', TEST_VECTOR_EVENTS)
+
+  const meta = {
+    chainID: 1,
+    startHeight: 15766005n,
+    endHeight: 15766005n,
+  }
+
+  await writeSnapshot(db, out1, meta)
+  await writeSnapshot(db, out2, meta)
+
+  const [c1, c2] = await Promise.all([computeRawCID(out1), computeRawCID(out2)])
+  assert.equal(c1, c2)
+
+  cleanup(dbPath, out1, out2)
+})
+
+>>>>>>> a870335 (Add test for snapshot/ remove unsed code)
 test('writeCarWithRoot produces CAR with root matching raw CID', async () => {
   const p = makeTmpPath('blob') + '/file.bin'
   const car = makeTmpPath('car') + '/archive.car'
