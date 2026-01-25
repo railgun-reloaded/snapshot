@@ -42,8 +42,8 @@ function getIPLD (): IPLDAPI {
  * Check if IPLD is initialized or not
  * @returns initializaition status of IPLDAPI
  */
-function isInitialized (): boolean {
+function isIPLDInitialized (): boolean {
   return ipldAPI !== null
 }
 
-export { initializeIPLD, getIPLD, isInitialized }
+export { initializeIPLD, getIPLD, isIPLDInitialized }

@@ -1,5 +1,5 @@
-import { getIPLD, initializeIPLD, isInitialized as isIPLDInitialized } from './ipld'
-import { getMultiformats, initializeMultiformats, isInitialized as isMultiformatsInitialized } from './multiformats'
+import { getIPLD, initializeIPLD, isIPLDInitialized } from './ipld'
+import { getMultiformats, initializeMultiformats, isMultiFormatsInitialized } from './multiformats'
 
 // dev-note;
 // we don't really wanna change our commonjs ... thing is, most ipld/multiformats packages are esm only
@@ -25,7 +25,7 @@ async function initializeFormats (): Promise<void> {
  * @returns  Return initialization status of formats
  */
 function isFormatsInitialized (): boolean {
-  return isMultiformatsInitialized() && isIPLDInitialized()
+  return isMultiFormatsInitialized() && isIPLDInitialized()
 }
 
 export { initializeFormats, isFormatsInitialized, getMultiformats, getIPLD }

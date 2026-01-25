@@ -45,8 +45,8 @@ function getMultiformats (): MultiformatsAPI {
  * Check initialization status of MultiformatAPI
  * @returns Initialization status of MultiFormatAPI
  */
-function isInitialized (): boolean {
+function isMultiFormatsInitialized (): boolean {
   return multiformatsAPI !== null
 }
 
-export { initializeMultiformats, getMultiformats, isInitialized }
+export { initializeMultiformats, getMultiformats, isMultiFormatsInitialized }
