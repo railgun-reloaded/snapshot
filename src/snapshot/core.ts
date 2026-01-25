@@ -140,9 +140,6 @@ async function createSnapshot (createOptions: {
     console.log(`Found event ${newEventCount}:`, event)
   }
 
-  fs.writeFileSync('events-dump.json', JSON.stringify(events, (_key, value) =>
-    typeof value === 'bigint' ? value.toString() : value, 2))
-
   await Promise.all([
     db.set('latestHeight', endHeight.toString()),
     db.set('events', events)

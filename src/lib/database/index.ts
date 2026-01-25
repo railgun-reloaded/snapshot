@@ -41,7 +41,7 @@ class RailgunDB {
    * @returns - Key value iterator over the entries
    * @yields - Key value pair for entries
    */
-  async * entries (): AsyncIterable<[string, any]> {
+  async * entries (): AsyncIterable<[string, Serializable]> {
     for (const [key, value] of this.#data) {
       yield [key, value]
     }
