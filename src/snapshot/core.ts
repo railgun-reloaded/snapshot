@@ -9,7 +9,7 @@ import { dagCborCIDFromBytes } from '../lib/content'
 import { RailgunDB } from '../lib/database'
 
 import { DAGCBORCodec } from './dagcbor-codec'
-import { maxBigInts, minBigInts } from './utils'
+import { minBigInts } from './utils'
 
 /**
  * Encode railgun blocks into DAG-CBOR and compress it using brotli compression. Also calculate
@@ -167,9 +167,16 @@ async function createSnapshot (createOptions: {
   const db = new RailgunDB(dbName)
   const lastScannedHeight = await db.get<string>('latestHeight')
 
-  let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)
-
-  startHeight = createOptions.startHeight ? maxBigInts(startHeight, createOptions.startHeight) : startHeight
+  // Determine the starting height for this snapshot
+  // Priority: user-specified startHeight > last scanned + 1 > deployment block
+  let startHeight: bigint
+  if (createOptions.startHeight) {
+    startHeight = createOptions.startHeight
+  } else if (lastScannedHeight) {
+    startHeight = BigInt(lastScannedHeight) + 1n
+  } else {
+    startHeight = BigInt(deploymentBlock)
+  }
 
   const latestHeight = await subsquidProvider.head()
   const endHeight = createOptions.endHeight ? minBigInts(createOptions.endHeight, latestHeight) : latestHeight
@@ -178,11 +185,10 @@ async function createSnapshot (createOptions: {
     throw new Error(`Invalid height range: startHeight (${startHeight}) cannot be greater than endHeight (${endHeight})`)
   }
 
-  const subsquidHead = await subsquidProvider.head()
-  console.log(`SubsquidProvider latest height: ${subsquidHead}`)
+  console.log(`SubsquidProvider latest height: ${latestHeight}`)
 
   const blockIterator = subsquidProvider.from({
-    startHeight: startHeight ? BigInt(startHeight) + 1n : deploymentBlock,
+    startHeight,
     liveSync: false,
     endHeight,
   })
