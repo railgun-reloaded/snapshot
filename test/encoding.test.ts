@@ -381,25 +381,21 @@ test('Snapshot encoding determinism', async (t) => {
 test('Snapshot error handling', async (t) => {
   t.test('should handle invalid block range (startHeight > endHeight)', async () => {
     const dbPath = makeTmpPath('db')
-    const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
     await db.set('blocks', rgEventBlocks)
 
-    const encoded = await encodeSnapshotFromDB(db, {
-      chainID: 1,
-      startHeight: 99999999n,
-      endHeight: 1n
-    })
+    await assert.rejects(
+      async () => {
+        await encodeSnapshotFromDB(db, {
+          chainID: 1,
+          startHeight: 99999999n,
+          endHeight: 1n
+        })
+      },
+      /Invalid height range/
+    )
 
-    await writeSnapshot(out, encoded)
-    const cid = await computeDagCborCID(out)
-
-    assert.ok(cid)
-    const root = await decodeSnapshot(out)
-    assert.equal(root.blocks.length, 0)
-    assert.equal(root.entryCount, 0)
-
-    cleanup(dbPath, out)
+    cleanup(dbPath)
   })
 
   t.test('should handle malformed block data gracefully', async () => {

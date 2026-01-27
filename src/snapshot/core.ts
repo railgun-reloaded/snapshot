@@ -42,6 +42,11 @@ function encodeSnapshot (blocks: EVMBlock[], metadata: {
 }) : Uint8Array {
   const { chainID, startHeight, endHeight } = metadata
 
+  // Validate height range
+  if (startHeight > endHeight) {
+    throw new Error(`Invalid height range: startHeight (${startHeight}) cannot be greater than endHeight (${endHeight})`)
+  }
+
   const filteredBlocks = blocks.filter((blk: any) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= metadata.startHeight && blockNumber <= metadata.endHeight
