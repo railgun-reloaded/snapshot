@@ -201,7 +201,7 @@ async function createSnapshot (createOptions: {
   ])
 
   const encodedData = encodeSnapshot(blocks, {
-    chainID: 1,
+    chainID,
     startHeight,
     endHeight
   })
