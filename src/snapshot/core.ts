@@ -56,7 +56,7 @@ function encodeSnapshot (blocks: EVMBlock[], metadata: {
 
   // Calculate total number of action entries from the transaction
   const entryCount = filteredBlocks.reduce(
-    (acc, b) => acc + (b.transactions?.reduce((t: any, tx: { actions: Action[][] }) => t + tx.actions.flat().length, 0) ?? 0),
+    (acc, b) => acc + (b.transactions?.reduce((t: any, tx: { actions?: Action[][] }) => t + (tx.actions?.flat().length ?? 0), 0) ?? 0),
     0)
 
   const snapshotContent = {

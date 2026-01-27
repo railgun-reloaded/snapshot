@@ -53,7 +53,7 @@ test('Snapshot basic encoding', async (t) => {
     assert.equal(BigInt(root.startHeight), firstBlock)
     assert.equal(BigInt(root.endHeight), firstBlock)
     assert.equal(root.blocks.length, 1)
-    const expectedBlocks = rgEventBlocks[0].transactions.reduce((sum: number, tx: any) => sum + tx.actions.flat().length, 0)
+    const expectedBlocks = rgEventBlocks[0].transactions.reduce((sum: number, tx: any) => sum + (tx.actions?.flat().length ?? 0), 0)
     assert.equal(root.entryCount, expectedBlocks)
 
     cleanup(out)
@@ -343,7 +343,7 @@ test('Snapshot encoding determinism', async (t) => {
 
     const root = await decodeSnapshot(out1)
     assert.equal(root.blocks.length, rgEventBlocks.length)
-    const totalActions = rgEventBlocks.reduce((sum, block) => sum + block.transactions.reduce((txSum: number, tx: any) => txSum + tx.actions.flat().length, 0), 0)
+    const totalActions = rgEventBlocks.reduce((sum, block) => sum + block.transactions.reduce((txSum: number, tx: any) => txSum + (tx.actions?.flat().length ?? 0), 0), 0)
     assert.equal(root.entryCount, totalActions)
     assert.equal(BigInt(root.startHeight), rgEventBlocks[0].number)
     assert.equal(BigInt(root.endHeight), rgEventBlocks[rgEventBlocks.length - 1].number)

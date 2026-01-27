@@ -57,7 +57,7 @@ export function loadBlockchainEvents (): BlockchainEventData {
             blocksWithEvents: parsed.length,
             totalEvents: parsed.reduce((sum: number, block: any) =>
               sum + (block.transactions?.reduce((txSum: number, tx: any) =>
-                txSum + tx.actions.flat().length))),
+                txSum + (tx.actions?.flat().length ?? 0), 0) ?? 0), 0),
             extractedAt: new Date().toISOString(),
             networkConfig: {
               rpcURL: 'test',
