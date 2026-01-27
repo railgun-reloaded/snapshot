@@ -149,7 +149,6 @@ async function createSnapshot (createOptions: {
   startHeight?: bigint;
   endHeight?: bigint;
 }) {
-  // TODO: release scanner pls
   type EVMBlock = any
 
   const { chainID, dbName, snapshotFilename } = createOptions
