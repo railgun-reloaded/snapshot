@@ -5,11 +5,13 @@ import type { Action, EVMBlock } from 'fafo-scanner'
 import { SubsquidProvider } from 'fafo-scanner'
 
 import { getNetworkConfigFromChainID } from '../config'
-import { dagCborCIDFromBytes } from '../lib/content'
+import { computeDagCborCID, dagCborCIDFromBytes } from '../lib/content'
 import { RailgunDB } from '../lib/database'
 
 import { DAGCBORCodec } from './dagcbor-codec'
 import { minBigInts } from './utils'
+
+const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
 
 /**
  * Encode railgun blocks into DAG-CBOR and compress it using brotli compression. Also calculate
@@ -97,9 +99,10 @@ async function encodeSnapshotFromDB (db: RailgunDB, metadata: {
  * Decode a compressed DAG-CBOR snapshot into metaData and eventBlocks
  * from file
  * @param filePath - Filepath to the encoded snapshot
+ * @param expectedCid - Optional CID to validate against (recommended for security)
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshot (filePath: string): Promise<{
+async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<{
   version: number
   chainID: number
   startHeight: bigint
@@ -109,7 +112,18 @@ async function decodeSnapshot (filePath: string): Promise<{
 }> {
   const dagCbor = await import('@ipld/dag-cbor')
   const data = await fs.promises.readFile(filePath)
-  const decompressedData = zlib.brotliDecompressSync(data)
+
+  if (expectedCid) {
+    const actualCid = await computeDagCborCID(filePath)
+    if (actualCid !== expectedCid) {
+      throw new Error(`CID mismatch: expected ${expectedCid}, got ${actualCid}`)
+    }
+  }
+
+  const decompressedData = zlib.brotliDecompressSync(data, {
+    maxOutputLength: MAX_DECOMPRESSED_SIZE
+  })
+
   return dagCbor.decode(decompressedData) as any
 }
 
@@ -118,9 +132,10 @@ async function decodeSnapshot (filePath: string): Promise<{
  * from file and write to DB
  * @param filePath - Filepath to the encoded snapshot
  * @param db - RailgunDatabase Instance
+ * @param expectedCid - Optional CID to validate against (recommended for security)
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshotToDB (filePath: string, db: RailgunDB): Promise<{
+async function decodeSnapshotToDB (filePath: string, db: RailgunDB, expectedCid?: string): Promise<{
   version: number
   chainID: number
   startHeight: bigint
@@ -128,7 +143,7 @@ async function decodeSnapshotToDB (filePath: string, db: RailgunDB): Promise<{
   entryCount: number
   blocks: EVMBlock[]
 }> {
-  const decodedData = (await decodeSnapshot(filePath)) as any
+  const decodedData = await decodeSnapshot(filePath, expectedCid)
 
   db.set('latestHeight', decodedData.endHeight)
   db.set('blocks', decodedData.blocks)
