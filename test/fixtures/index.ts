@@ -26,22 +26,24 @@ interface BlockchainEventData {
 
 let eventData: BlockchainEventData | null = null
 
-export function loadBlockchainEvents(): BlockchainEventData {
-
+/**
+ * Load blockchain event data from the dump file
+ * @returns BlockchainEventData representation of dump file
+ */
+export function loadBlockchainEvents (): BlockchainEventData {
   if (!eventData) {
     const dataPath = path.join(__dirname, 'events_dump.json')
 
     if (!fs.existsSync(dataPath)) {
       throw new Error(
-        `Missing events dump needed to run tests\n` +
-        `run 'npm run test:generate:events-dump' first.\n`
+        'Missing events dump needed to run tests\n' +
+        'run \'npm run test:generate:events-dump\' first.\n'
       )
     }
 
     try {
       const rawData = fs.readFileSync(dataPath, 'utf8')
       const parsed = JSON.parse(rawData)
-
 
       if (Array.isArray(parsed)) {
         // squid format
@@ -55,7 +57,7 @@ export function loadBlockchainEvents(): BlockchainEventData {
             blocksWithEvents: parsed.length,
             totalEvents: parsed.reduce((sum: number, block: any) =>
               sum + (block.transactions?.reduce((txSum: number, tx: any) =>
-                txSum + (tx.logs?.length || 0), 0) || 0), 0),
+                txSum + (tx.actions?.flat().length ?? 0), 0) ?? 0), 0),
             extractedAt: new Date().toISOString(),
             networkConfig: {
               rpcURL: 'test',
@@ -70,12 +72,11 @@ export function loadBlockchainEvents(): BlockchainEventData {
       } else {
         throw new Error('Unrecognized events dump format')
       }
-
     } catch (error) {
       if (error instanceof SyntaxError) {
         throw new Error(
-          `Invalid JSON in events dump file\n` +
-          `run 'npm run test:generate:events-dump' first.\n` +
+          'Invalid JSON in events dump file\n' +
+          'run \'npm run test:generate:events-dump\' first.\n' +
           `Error: ${error.message}`
         )
       }

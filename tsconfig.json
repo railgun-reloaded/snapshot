@@ -1,4 +1,4 @@
 {
   "extends": ["@railgun-reloaded/tsconfig/tsconfig"],
-  "exclude": ["scripts/**/*"]
+  "exclude": ["scripts/**/*", "eslint.config.js", "*.config.js"]
 }

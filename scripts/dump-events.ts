@@ -1,21 +1,23 @@
-
-
 const fs = require('fs')
 const path = require('path')
+//
+// This script will be mainly replaced with a proper snapshot fetch once its fully on ipfs
+//
 
-import { RPCProvider, SourceAggregator, SubsquidProvider } from 'fafo-scanner'
-import { RPCConnectionManager } from 'fafo-scanner/src/sources/rpc'
+import { SubsquidProvider } from 'fafo-scanner'
 import { getNetworkConfigFromChainID } from '../src/config'
 import { RailgunDB } from '../src/lib/database'
 import { minBigInts } from '../src/snapshot/utils'
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') })
 
+// NOTE: This will mostly be replaced soon with a proper ipfs hash of any dump so we don;t need to run this every time :)
+
 async function eventsDump(options: any) {
   const {
     chainID = 1,
-    startBlock = 17000000n,
-    endBlock = 17010000n,
+    startBlock = 15766005n,
+    endBlock = 16195440,
     outputFile = '../test/fixtures/events_dump.json'
   } = options
 
@@ -24,14 +26,15 @@ async function eventsDump(options: any) {
   try {
 
 
-    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = getNetworkConfigFromChainID(chainID)
+    const config = getNetworkConfigFromChainID(chainID)
+    const { rpcURL, subsquidURL, deploymentBlock, proxyAddress } = config
 
     if (!rpcURL) {
       throw new Error('[events-dump]: network RPC URL is not defined')
     }
 
-    const connectionManager = new RPCConnectionManager(4)
-    const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
+    // const connectionManager = new RPCConnectionManager(4)
+    //const rpcProvider = new RPCProvider(proxyAddress as `0x${string}`, rpcURL, connectionManager)
     const subsquidProvider = new SubsquidProvider(subsquidURL)
 
     const db = new RailgunDB()
@@ -40,7 +43,7 @@ async function eventsDump(options: any) {
     let startHeight = lastScannedHeight ? BigInt(lastScannedHeight) + 1n : BigInt(deploymentBlock)
     startHeight = startBlock
 
-    const latestHeight = await rpcProvider.head()
+    const latestHeight = await subsquidProvider.head()
     const endHeight = endBlock ? minBigInts(endBlock, latestHeight) : latestHeight
 
     if (startHeight > endHeight) {
@@ -50,11 +53,12 @@ async function eventsDump(options: any) {
     const subsquidHead = await subsquidProvider.head()
     console.log(`'[events-dump]: subsquidProvider latest height: ${subsquidHead}`)
 
-    const aggregatedSource = new SourceAggregator([subsquidProvider, rpcProvider])
-    const eventIterator = aggregatedSource.from({
+   
+    const eventIterator = subsquidProvider.from({
       startHeight: BigInt(startHeight),
+      liveSync: false,
       endHeight,
-      chunkSize: 10_000n
+      chunkSize: 5_000n
     })
 
     const events = await db.get<any[]>('events') ?? []
