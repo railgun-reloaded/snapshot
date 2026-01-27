@@ -123,7 +123,7 @@ async function decodeSnapshotToDB (filePath: string, db: RailgunDB): Promise<{
   entryCount: number
   blocks: EVMBlock[]
 }> {
-  const decodedData = decodeSnapshot(filePath) as any
+  const decodedData = (await decodeSnapshot(filePath)) as any
 
   db.set('latestHeight', decodedData.endHeight)
   db.set('blocks', decodedData.blocks)
@@ -152,8 +152,10 @@ async function createSnapshot (createOptions: {
   type EVMBlock = any
 
   const { chainID, dbName, snapshotFilename } = createOptions
-  if (!chainID) throw new Error('ChainID is not defined')
 
+  if (!chainID) {
+    throw new Error('ChainID is not defined')
+  }
   const { rpcURL, subsquidURL, deploymentBlock } = getNetworkConfigFromChainID(chainID)
 
   if (!rpcURL) {
