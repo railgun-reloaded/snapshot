@@ -216,11 +216,8 @@ async function createSnapshot (createOptions: {
   const blocks = await db.get<EVMBlock[]>('blocks') ?? []
   console.log(`Starting with ${blocks.length} existing blocks in DB`)
 
-  let newEventCount = 0
   for await (const block of blockIterator) {
     blocks.push(block)
-    newEventCount++
-    console.log(`Found event ${newEventCount}:`, event)
   }
 
   await Promise.all([
