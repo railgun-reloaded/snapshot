@@ -1,6 +1,7 @@
 enum NetworkName {
   Ethereum,
-  Polygon
+  Polygon,
+  EthereumSepolia
 }
 
 const NETWORK_CONFIG = {
@@ -8,7 +9,7 @@ const NETWORK_CONFIG = {
     name: 'ethereum',
     proxyAddress: '0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9',
     deploymentBlock: 14737691n,
-    subsquidURL: 'https://378c7df9-13ab-48ef-a7fb-68f71af5fc6f.squids.live/squid-railgun-ethereum-test@v1/api/graphql',
+    subsquidURL: 'http://localhost:4350/graphql',
     rpcURL: process.env['RPC_ETH_URL']
   },
   [NetworkName.Polygon]: {
@@ -17,6 +18,13 @@ const NETWORK_CONFIG = {
     deploymentBlock: 27803253n,
     subsquidURL: 'https://9de66b63-778a-4bfd-a169-6a82a122aef3.squids.live/squid-railgun-polygon-test@v1/api/graphql',
     rpcURL: process.env['RPC_POLY_URL']
+  },
+  [NetworkName.EthereumSepolia]: {
+    name: 'ethereum-sepolia',
+    proxyAddress: '0xeCFCf3b4eC647c4Ca6D49108b311b7a7C9543fea',
+    deploymentBlock: 5784866n,
+    subsquidURL: 'https://rail-squid.squids.live/squid-railgun-eth-sepolia-v2/graphql',
+    rpcURL: process.env['RPC_SEPOLIA_URL']
   }
 }
 
@@ -31,6 +39,8 @@ function getNetworkConfigFromChainID (chainID: number) {
       return NETWORK_CONFIG[NetworkName.Ethereum]
     case 137:
       return NETWORK_CONFIG[NetworkName.Polygon]
+    case 11155111:
+      return NETWORK_CONFIG[NetworkName.EthereumSepolia]
     default:
       throw new Error('Unknown chainID')
   }
