@@ -144,7 +144,7 @@ test('Snapshot misc scenarios ', async (t) => {
     await db.set('blocks', [])
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
-    writeSnapshot(out, encodedData)
+    await writeSnapshot(out, encodedData)
     const root = await decodeSnapshot(out)
 
     assert.equal(root.version, 1)

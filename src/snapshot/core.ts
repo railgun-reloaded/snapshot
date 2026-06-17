@@ -1,8 +1,8 @@
 import fs from 'fs'
 import zlib from 'zlib'
 
-import type { Action, EVMBlock } from 'fafo-scanner'
-import { SubsquidProvider } from 'fafo-scanner'
+import type { Action, EVMBlock } from '@railgun-reloaded/scanner'
+import { SubsquidProvider } from '@railgun-reloaded/scanner'
 
 import { getNetworkConfigFromChainID } from '../config'
 import { computeDagCborCID, dagCborCIDFromBytes } from '../lib/content'

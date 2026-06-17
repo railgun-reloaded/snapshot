@@ -4,7 +4,7 @@ const path = require('path')
 // This script will be mainly replaced with a proper snapshot fetch once its fully on ipfs
 //
 
-import { SubsquidProvider } from 'fafo-scanner'
+import { SubsquidProvider } from '@railgun-reloaded/scanner'
 import { getNetworkConfigFromChainID } from '../src/config'
 import { RailgunDB } from '../src/lib/database'
 import { minBigInts } from '../src/snapshot/utils'

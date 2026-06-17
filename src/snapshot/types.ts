@@ -1,4 +1,4 @@
-// Shapes compatible with fafo-scanner EVM types
+// Shapes compatible with @railgun-reloaded/scanner EVM types
 type SnapshotEVMLog = {
   index: number
   address: string
