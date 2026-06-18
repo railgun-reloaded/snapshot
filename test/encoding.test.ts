@@ -9,6 +9,7 @@ import { initializeFormats } from '../src/lib/formats'
 import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core'
 
 import { loadBlockchainEvents } from './fixtures'
+import { SNAPSHOT_CID_FIXTURE } from './fixtures/snapshot-cid-fixture'
 import { TEST_VECTOR_EVENTS3 } from './test-vectors'
 import { cleanup, exists, makeTmpPath } from './utils'
 
@@ -31,6 +32,17 @@ hook('setup railgun blocks on db', async () => {
 })
 
 test('Snapshot basic encoding', async (t) => {
+  t.test('should match the shared DAG-CBOR CID fixture', async () => {
+    const bytes = Uint8Array.from(
+      Buffer.from(SNAPSHOT_CID_FIXTURE.artifactHex, 'hex')
+    )
+
+    assert.equal(
+      await dagCborCIDFromBytes(bytes),
+      SNAPSHOT_CID_FIXTURE.cid
+    )
+  })
+
   t.test('should produce same cid from bytes and snapshot file', async () => {
     const out = makeTmpPath('snap') + '.rsnap'
     const firstBlock = BigInt(rgEventBlocks[0].number)
