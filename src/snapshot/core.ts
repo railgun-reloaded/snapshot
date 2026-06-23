@@ -1,17 +1,314 @@
 import fs from 'fs'
 import zlib from 'zlib'
 
-import type { Action, EVMBlock } from '@railgun-reloaded/scanner'
+import type { EVMBlock } from '@railgun-reloaded/scanner'
 import { SubsquidProvider } from '@railgun-reloaded/scanner'
 
 import { getNetworkConfigFromChainID } from '../config'
-import { computeDagCborCID, dagCborCIDFromBytes } from '../lib/content'
+import { dagCborCIDFromBytes } from '../lib/content'
 import { RailgunDB } from '../lib/database'
+import { getMultiformats, initializeFormats } from '../lib/formats'
 
 import { DAGCBORCodec } from './dagcbor-codec'
+import type {
+  Snapshot,
+  SnapshotAction,
+  SnapshotBlock,
+  SnapshotBytes,
+  SnapshotMemo,
+  SnapshotTransaction
+} from './types'
 import { minBigInts } from './utils'
 
 const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
+const SNAPSHOT_VERSION = 1
+
+/**
+ * Normalize a decoded height.
+ * @param value - Decoded value.
+ * @param fieldName - Field name for errors.
+ * @returns Bigint height.
+ */
+function normalizeHeight (value: unknown, fieldName: string): bigint {
+  if (typeof value === 'bigint') {
+    return value
+  }
+  if (typeof value === 'number' && Number.isSafeInteger(value)) {
+    return BigInt(value)
+  }
+  throw new Error(`Invalid snapshot: missing or invalid ${fieldName}`)
+}
+
+/**
+ * Require an object record.
+ * @param value - Candidate value.
+ * @param fieldName - Field name for errors.
+ * @returns Object record.
+ */
+function requireRecord (
+  value: unknown,
+  fieldName: string
+): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid snapshot: ${fieldName} must be an object`)
+  }
+  return value as Record<string, unknown>
+}
+
+/**
+ * Require a safe integer.
+ * @param value - Candidate value.
+ * @param fieldName - Field name for errors.
+ * @returns Integer value.
+ */
+function requireInteger (value: unknown, fieldName: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+    throw new Error(`Invalid snapshot: missing or invalid ${fieldName}`)
+  }
+  return value
+}
+
+/**
+ * Require snapshot bytes.
+ * @param value - Candidate value.
+ * @param fieldName - Field name for errors.
+ * @returns Snapshot byte representation.
+ */
+function requireBytes (value: unknown, fieldName: string): SnapshotBytes {
+  if (!(value instanceof Uint8Array) && typeof value !== 'string') {
+    throw new Error(`Invalid snapshot: missing or invalid ${fieldName}`)
+  }
+  return value
+}
+
+/**
+ * Check whether a value is one memo byte entry.
+ * @param value - Candidate value.
+ * @returns Whether the value is memo bytes.
+ */
+function isMemoBytes (value: unknown): boolean {
+  return typeof value === 'string' ||
+    typeof value === 'bigint' ||
+    value instanceof Uint8Array ||
+    (Array.isArray(value) && value.every(
+      entry => typeof entry === 'number' && Number.isInteger(entry)
+    ))
+}
+
+/**
+ * Check whether a value is a supported memo payload.
+ * @param value - Candidate value.
+ * @returns Whether the value is a memo payload.
+ */
+function isMemo (value: unknown): value is SnapshotMemo {
+  return isMemoBytes(value) ||
+    (Array.isArray(value) && value.every(isMemoBytes))
+}
+
+/**
+ * Validate one decoded action.
+ * @param value - Decoded action.
+ * @returns Snapshot action.
+ */
+function validateAction (value: unknown): SnapshotAction {
+  const action = requireRecord(value, 'action')
+  if (
+    typeof action['actionType'] !== 'string' ||
+    action['actionType'].length === 0
+  ) {
+    throw new Error('Invalid snapshot: missing or invalid actionType')
+  }
+
+  const validated: SnapshotAction = {
+    ...action,
+    actionType: action['actionType']
+  }
+
+  if (action['commitments'] !== undefined) {
+    if (!Array.isArray(action['commitments'])) {
+      throw new Error('Invalid snapshot: commitments must be an array')
+    }
+    validated.commitments = action['commitments'].map((value) => {
+      const commitment = requireRecord(value, 'commitment')
+      if (!isMemo(commitment['memo'])) {
+        throw new Error('Invalid snapshot: commitment memo has invalid bytes')
+      }
+      return {
+        ...commitment,
+        memo: commitment['memo']
+      }
+    })
+  }
+
+  return validated
+}
+
+/**
+ * Validate one decoded transaction.
+ * @param value - Decoded transaction.
+ * @returns Snapshot transaction.
+ */
+function validateTransaction (value: unknown): SnapshotTransaction {
+  const transaction = requireRecord(value, 'transaction')
+  if (
+    transaction['actions'] !== undefined &&
+    !Array.isArray(transaction['actions'])
+  ) {
+    throw new Error('Invalid snapshot: transaction actions must be an array')
+  }
+
+  const rawActions = Array.isArray(transaction['actions'])
+    ? transaction['actions']
+    : []
+  const actions = rawActions.map((batch) => {
+    if (!Array.isArray(batch)) {
+      throw new Error('Invalid snapshot: transaction action batch must be an array')
+    }
+    return batch.map(validateAction)
+  })
+
+  return {
+    hash: requireBytes(transaction['hash'], 'transaction hash'),
+    index: requireInteger(transaction['index'], 'transaction index'),
+    from: requireBytes(transaction['from'], 'transaction from'),
+    actions
+  }
+}
+
+/**
+ * Validate one decoded block.
+ * @param value - Decoded block.
+ * @returns Snapshot block.
+ */
+function validateBlock (value: unknown): SnapshotBlock {
+  const block = requireRecord(value, 'block')
+  if (!Array.isArray(block['transactions'])) {
+    throw new Error('Invalid snapshot: block transactions must be an array')
+  }
+
+  return {
+    number: normalizeHeight(block['number'], 'block number'),
+    hash: requireBytes(block['hash'], 'block hash'),
+    timestamp: normalizeHeight(block['timestamp'], 'block timestamp'),
+    transactions: block['transactions'].map(validateTransaction)
+  }
+}
+
+/**
+ * Validate and normalize a decoded snapshot.
+ * @param value - Decoded root value.
+ * @returns Snapshot domain object.
+ */
+function validateSnapshot (value: unknown): Snapshot {
+  const decoded = requireRecord(value, 'root')
+  const version = requireInteger(decoded['version'], 'version')
+  if (version !== SNAPSHOT_VERSION) {
+    throw new Error(`Invalid snapshot: unsupported version ${version}`)
+  }
+
+  const chainID = requireInteger(decoded['chainID'], 'chainID')
+  if (chainID < 0) {
+    throw new Error('Invalid snapshot: chainID cannot be negative')
+  }
+
+  const startHeight = normalizeHeight(decoded['startHeight'], 'startHeight')
+  const endHeight = normalizeHeight(decoded['endHeight'], 'endHeight')
+  if (startHeight > endHeight) {
+    throw new Error('Invalid snapshot: startHeight cannot be greater than endHeight')
+  }
+
+  const entryCount = requireInteger(decoded['entryCount'], 'entryCount')
+  if (entryCount < 0) {
+    throw new Error('Invalid snapshot: entryCount cannot be negative')
+  }
+
+  if (!Array.isArray(decoded['blocks'])) {
+    throw new Error('Invalid snapshot: blocks must be an array')
+  }
+  const blocks = decoded['blocks'].map(validateBlock)
+
+  for (const block of blocks) {
+    if (block.number < startHeight || block.number > endHeight) {
+      throw new Error('Invalid snapshot: block number is outside the snapshot range')
+    }
+  }
+
+  const actualEntryCount = blocks.reduce(
+    (blockTotal, block) => blockTotal + block.transactions.reduce(
+      (transactionTotal, transaction) =>
+        transactionTotal + transaction.actions.reduce(
+          (actionTotal, batch) => actionTotal + batch.length,
+          0
+        ),
+      0
+    ),
+    0
+  )
+  if (entryCount !== actualEntryCount) {
+    throw new Error(
+      `Invalid snapshot: entryCount ${entryCount} does not match ${actualEntryCount} actions`
+    )
+  }
+
+  return {
+    version,
+    chainID,
+    startHeight,
+    endHeight,
+    entryCount,
+    blocks
+  }
+}
+
+/**
+ * Verify artifact bytes against the expected CID.
+ * @param bytes - Compressed artifact bytes.
+ * @param expectedCid - Expected artifact CID.
+ */
+async function verifyArtifactCID (
+  bytes: Uint8Array,
+  expectedCid: string
+): Promise<void> {
+  const { CID } = getMultiformats()
+  let expected
+  try {
+    expected = CID.parse(expectedCid)
+  } catch (err) {
+    throw new Error(`Invalid expected snapshot CID: ${expectedCid}`, {
+      cause: err
+    })
+  }
+
+  const actualCid = await dagCborCIDFromBytes(bytes)
+  if (!CID.parse(actualCid).equals(expected)) {
+    throw new Error(
+      `Snapshot CID mismatch: expected ${expectedCid}, got ${actualCid}`
+    )
+  }
+}
+
+/**
+ * Decode a verified snapshot artifact from in-memory bytes.
+ *
+ * This is the single consumer entry point for the artifact lifecycle: it
+ * content-addresses the bytes against `expectedCid`, brotli-decompresses,
+ * DAG-CBOR-decodes, and validates the artifact shape. CID verification happens
+ * before decompression, so tampered bytes are rejected before any decode work.
+ * @param bytes - Compressed snapshot artifact bytes.
+ * @param expectedCid - CID the bytes must content-address to.
+ * @returns Decoded and validated snapshot.
+ */
+async function decodeArtifact (bytes: Uint8Array, expectedCid: string): Promise<Snapshot> {
+  await initializeFormats()
+  await verifyArtifactCID(bytes, expectedCid)
+
+  const decompressed = zlib.brotliDecompressSync(bytes, {
+    maxOutputLength: MAX_DECOMPRESSED_SIZE
+  })
+
+  const decoded = DAGCBORCodec.decodeFromBytes<unknown>(decompressed)
+  return validateSnapshot(decoded)
+}
 
 /**
  * Encode railgun blocks into DAG-CBOR and compress it using brotli compression. Also calculate
@@ -49,18 +346,22 @@ function encodeSnapshot (blocks: EVMBlock[], metadata: {
     throw new Error(`Invalid height range: startHeight (${startHeight}) cannot be greater than endHeight (${endHeight})`)
   }
 
-  const filteredBlocks = blocks.filter((blk: any) => {
+  const filteredBlocks = blocks.filter((blk) => {
     const blockNumber = BigInt(blk.number)
     return blockNumber >= metadata.startHeight && blockNumber <= metadata.endHeight
   })
 
   // Calculate total number of action entries from the transaction
   const entryCount = filteredBlocks.reduce(
-    (acc, b) => acc + (b.transactions?.reduce((t: any, tx: { actions?: Action[][] }) => t + (tx.actions?.flat().length ?? 0), 0) ?? 0),
+    (acc, block) => acc + (block.transactions?.reduce(
+      (transactionTotal, transaction) =>
+        transactionTotal + (transaction.actions?.flat().length ?? 0),
+      0
+    ) ?? 0),
     0)
 
   const snapshotContent = {
-    version: 1,
+    version: SNAPSHOT_VERSION,
     chainID,
     startHeight,
     endHeight,
@@ -102,29 +403,11 @@ async function encodeSnapshotFromDB (db: RailgunDB, metadata: {
  * @param expectedCid - Optional CID to validate against (recommended for security)
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<{
-  version: number
-  chainID: number
-  startHeight: bigint
-  endHeight: bigint
-  entryCount: number
-  blocks: EVMBlock[]
-}> {
-  const dagCbor = await import('@ipld/dag-cbor')
-  const data = await fs.promises.readFile(filePath)
-
-  if (expectedCid) {
-    const actualCid = await computeDagCborCID(filePath)
-    if (actualCid !== expectedCid) {
-      throw new Error(`CID mismatch: expected ${expectedCid}, got ${actualCid}`)
-    }
-  }
-
-  const decompressedData = zlib.brotliDecompressSync(data, {
-    maxOutputLength: MAX_DECOMPRESSED_SIZE
-  })
-
-  return dagCbor.decode(decompressedData) as any
+async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<Snapshot> {
+  const data = new Uint8Array(await fs.promises.readFile(filePath))
+  await initializeFormats()
+  const cid = expectedCid ?? await dagCborCIDFromBytes(data)
+  return decodeArtifact(data, cid)
 }
 
 /**
@@ -135,14 +418,7 @@ async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<
  * @param expectedCid - Optional CID to validate against (recommended for security)
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshotToDB (filePath: string, db: RailgunDB, expectedCid?: string): Promise<{
-  version: number
-  chainID: number
-  startHeight: bigint
-  endHeight: bigint
-  entryCount: number
-  blocks: EVMBlock[]
-}> {
+async function decodeSnapshotToDB (filePath: string, db: RailgunDB, expectedCid?: string): Promise<Snapshot> {
   const decodedData = await decodeSnapshot(filePath, expectedCid)
 
   db.set('latestHeight', decodedData.endHeight)
@@ -169,8 +445,6 @@ async function createSnapshot (createOptions: {
   startHeight?: bigint;
   endHeight?: bigint;
 }) {
-  type EVMBlock = any
-
   const { chainID, dbName, snapshotFilename } = createOptions
 
   if (!chainID) {
@@ -238,4 +512,4 @@ async function createSnapshot (createOptions: {
   return dagCborCIDFromBytes(encodedData)
 }
 
-export { createSnapshot, writeSnapshot, encodeSnapshot, decodeSnapshot, encodeSnapshotFromDB, decodeSnapshotToDB }
+export { createSnapshot, writeSnapshot, encodeSnapshot, decodeArtifact, decodeSnapshot, encodeSnapshotFromDB, decodeSnapshotToDB }

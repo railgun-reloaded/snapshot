@@ -1,24 +1,44 @@
-// Shapes compatible with @railgun-reloaded/scanner EVM types
-type SnapshotEVMLog = {
+type SnapshotBytes = Uint8Array | string
+
+type SnapshotMemoBytes = SnapshotBytes | bigint | readonly number[]
+type SnapshotMemo = SnapshotMemoBytes | ReadonlyArray<SnapshotMemoBytes>
+
+type SnapshotAction = {
+  actionType: string
+  commitments?: Array<{
+    memo: SnapshotMemo
+  } & Record<string, unknown>>
+} & Record<string, unknown>
+
+type SnapshotTransaction = {
+  hash: SnapshotBytes
   index: number
-  address: string
-  name: string
-  args: Record<string, any>
+  from: SnapshotBytes
+  actions: SnapshotAction[][]
 }
 
-type SnapshotEVMTransaction = {
-  hash: string
-  index: number
-  from: string
-  logs: SnapshotEVMLog[]
-}
-
-type SnapshotEVMBlock = {
+type SnapshotBlock = {
   number: bigint
-  hash: string
+  hash: SnapshotBytes
   timestamp: bigint
-  transactions: SnapshotEVMTransaction[]
-  internalTransaction: { tracePath: number[]; from: string }[]
+  transactions: SnapshotTransaction[]
 }
 
-export type { SnapshotEVMLog, SnapshotEVMTransaction, SnapshotEVMBlock }
+type Snapshot = {
+  version: number
+  chainID: number
+  startHeight: bigint
+  endHeight: bigint
+  entryCount: number
+  blocks: SnapshotBlock[]
+}
+
+export type {
+  Snapshot,
+  SnapshotAction,
+  SnapshotBlock,
+  SnapshotBytes,
+  SnapshotMemo,
+  SnapshotMemoBytes,
+  SnapshotTransaction
+}

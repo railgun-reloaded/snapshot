@@ -4,7 +4,7 @@ index 5615277..b7bc999 100644
 +++ b/node_modules/@ipld/dag-cbor/src/index.js
 @@ -1,4 +1,5 @@
  import * as cborg from 'cborg'
-+import { bigIntEncoder, bigIntDecoder } from 'cborg/taglib'
++import { bigIntEncoder, bigIntDecoder, bigNegIntDecoder } from 'cborg/taglib'
  import { CID } from 'multiformats/cid'
  
  // https://github.com/ipfs/go-ipfs/issues/3570#issuecomment-273931692
@@ -23,7 +23,7 @@ index 5615277..b7bc999 100644
    rejectDuplicateMapKeys: true,
    /** @type {{ [tagNumber: number]: import('cborg').TagDecoder }} */
 -  tags: { [CID_CBOR_TAG]: cidDecoder }
-+  tags: { [CID_CBOR_TAG]: cidDecoder, 2: bigIntDecoder }
++  tags: { [CID_CBOR_TAG]: cidDecoder, 2: bigIntDecoder, 3: bigNegIntDecoder }
  }
  
  export const decodeOptions = {
