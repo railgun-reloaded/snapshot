@@ -7,6 +7,7 @@ import { computeDagCborCID, dagCborCIDFromBytes, writeCarWithDagCborRoot } from 
 import { RailgunDB } from '../src/lib/database'
 import { initializeFormats } from '../src/lib/formats'
 import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core'
+import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec'
 
 import { loadBlockchainEvents } from './fixtures'
 import { TEST_VECTOR_EVENTS3 } from './test-vectors'
@@ -28,6 +29,19 @@ hook('setup railgun blocks on db', async () => {
     number: BigInt(block.number),
     timestamp: BigInt(block.timestamp)
   }))
+})
+
+test('DAGCBORCodec bigint tags', () => {
+  const positive = 2n ** 80n
+  const negative = -(2n ** 80n)
+  const encoded = DAGCBORCodec.encodeToBytes({ positive, negative })
+  const decoded = DAGCBORCodec.decodeFromBytes<{
+    positive: bigint
+    negative: bigint
+  }>(encoded)
+
+  assert.equal(decoded.positive, positive)
+  assert.equal(decoded.negative, negative)
 })
 
 test('Snapshot basic encoding', async (t) => {

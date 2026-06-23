@@ -11,8 +11,14 @@ class DAGCBORCodec {
    */
   static encodeToBytes (data: Record<string, any>) {
     try {
-      const { dagCbor } = getIPLD()
-      return dagCbor.encode(data)
+      const { cborg, cborgTaglib, dagCbor } = getIPLD()
+      return cborg.encode(data, {
+        ...dagCbor.encodeOptions,
+        typeEncoders: {
+          ...dagCbor.encodeOptions.typeEncoders,
+          bigint: cborgTaglib.bigIntEncoder
+        }
+      })
     } catch (err) {
       throw new Error('Failed to encode data using DAGCBOR', { cause: err })
     }
@@ -25,8 +31,15 @@ class DAGCBORCodec {
    */
   static decodeFromBytes<T>(data: Uint8Array) {
     try {
-      const { dagCbor } = getIPLD()
-      return dagCbor.decode(data) as T
+      const { cborg, cborgTaglib, dagCbor } = getIPLD()
+      return cborg.decode(dagCbor.toByteView(data), {
+        ...dagCbor.decodeOptions,
+        tags: {
+          ...dagCbor.decodeOptions.tags,
+          2: cborgTaglib.bigIntDecoder,
+          3: cborgTaglib.bigNegIntDecoder
+        }
+      }) as T
     } catch (err) {
       throw new Error('Failed to decode data using DAGCBOR', { cause: err })
     }
