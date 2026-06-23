@@ -47,7 +47,7 @@ test('Snapshot basic encoding', async (t) => {
     const verify = await computeDagCborCID(out)
     assert.equal(verify, cid)
 
-    const root = await decodeSnapshot(out)
+    const root = await decodeSnapshot(out, cid)
     assert.equal(root.version, 1)
     assert.equal(root.chainID, 1)
     assert.equal(BigInt(root.startHeight), firstBlock)
@@ -145,7 +145,8 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
     await writeSnapshot(out, encodedData)
-    const root = await decodeSnapshot(out)
+    const cid = await dagCborCIDFromBytes(encodedData)
+    const root = await decodeSnapshot(out, cid)
 
     assert.equal(root.version, 1)
     assert.equal(root.chainID, 1)
@@ -163,8 +164,9 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
     await writeSnapshot(out, encodedData)
+    const cid = await dagCborCIDFromBytes(encodedData)
 
-    const root = await decodeSnapshot(out)
+    const root = await decodeSnapshot(out, cid)
     assert.equal(root.blocks.length, 0)
     assert.equal(root.entryCount, 0)
 
@@ -188,8 +190,9 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: BigInt(data.blocks[0].number), endHeight: BigInt(data.blocks[0].number) })
     await writeSnapshot(out, encodedData)
+    const cid = await dagCborCIDFromBytes(encodedData)
 
-    const root = await decodeSnapshot(out)
+    const root = await decodeSnapshot(out, cid)
     assert.equal(root.blocks.length, 1)
     assert.equal(root.blocks[0]!.transactions.length, 0)
     assert.equal(root.entryCount, 0)
@@ -341,7 +344,7 @@ test('Snapshot encoding determinism', async (t) => {
 
     assert.equal(cid1, cid2)
 
-    const root = await decodeSnapshot(out1)
+    const root = await decodeSnapshot(out1, cid2)
     assert.equal(root.blocks.length, rgEventBlocks.length)
     const totalActions = rgEventBlocks.reduce((sum, block) => sum + block.transactions.reduce((txSum: number, tx: any) => txSum + (tx.actions?.flat().length ?? 0), 0), 0)
     assert.equal(root.entryCount, totalActions)
@@ -366,10 +369,11 @@ test('Snapshot encoding determinism', async (t) => {
     })
 
     await writeSnapshot(outFile, encoded)
+    const cid = await dagCborCIDFromBytes(encoded)
 
     assert.ok(exists(outFile), 'snapshot file should exist')
 
-    const restored = await decodeSnapshot(outFile)
+    const restored = await decodeSnapshot(outFile, cid)
     assert.ok(restored, 'restored object should be defined')
 
     assert.alike.coercively(TEST_VECTOR_EVENTS3, restored.blocks, 'restored object must be same as actual object')
@@ -424,11 +428,34 @@ test('Snapshot error handling', async (t) => {
 
     assert.ok(cid)
     await assert.rejects(
-      () => decodeSnapshot(out),
+      () => decodeSnapshot(out, cid),
       /block transactions must be an array/
     )
 
     cleanup(dbPath, out)
+  })
+
+  t.test('should reject snapshot bytes that do not match the expected CID', async () => {
+    const out = makeTmpPath('snap') + '.rsnap'
+    const firstBlock = BigInt(rgEventBlocks[0].number)
+
+    const encoded = encodeSnapshot(rgEventBlocks, {
+      chainID: 1,
+      startHeight: firstBlock,
+      endHeight: firstBlock
+    })
+    const expectedCid = await dagCborCIDFromBytes(encoded)
+    const tampered = new Uint8Array(encoded)
+    tampered[tampered.length - 1]! ^= 0xff
+
+    await writeSnapshot(out, tampered)
+
+    await assert.rejects(
+      () => decodeSnapshot(out, expectedCid),
+      /Snapshot CID mismatch/
+    )
+
+    cleanup(out)
   })
 
   t.test('should handle blocks outside requested range', async () => {
@@ -449,7 +476,7 @@ test('Snapshot error handling', async (t) => {
       writeSnapshot(out, encoded)])
 
     assert.ok(cid)
-    const root = await decodeSnapshot(out)
+    const root = await decodeSnapshot(out, cid)
     assert.equal(root.blocks.length, 0)
     assert.equal(root.entryCount, 0)
     assert.equal(BigInt(root.startHeight), 99999990n)

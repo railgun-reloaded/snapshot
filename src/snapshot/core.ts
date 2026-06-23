@@ -400,14 +400,12 @@ async function encodeSnapshotFromDB (db: RailgunDB, metadata: {
  * Decode a compressed DAG-CBOR snapshot into metaData and eventBlocks
  * from file
  * @param filePath - Filepath to the encoded snapshot
- * @param expectedCid - Optional CID to validate against (recommended for security)
+ * @param expectedCid - CID the bytes must content-address to.
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<Snapshot> {
+async function decodeSnapshot (filePath: string, expectedCid: string): Promise<Snapshot> {
   const data = new Uint8Array(await fs.promises.readFile(filePath))
-  await initializeFormats()
-  const cid = expectedCid ?? await dagCborCIDFromBytes(data)
-  return decodeArtifact(data, cid)
+  return decodeArtifact(data, expectedCid)
 }
 
 /**
@@ -415,10 +413,10 @@ async function decodeSnapshot (filePath: string, expectedCid?: string): Promise<
  * from file and write to DB
  * @param filePath - Filepath to the encoded snapshot
  * @param db - RailgunDatabase Instance
- * @param expectedCid - Optional CID to validate against (recommended for security)
+ * @param expectedCid - CID the bytes must content-address to.
  * @returns - Decoded snapshot data
  */
-async function decodeSnapshotToDB (filePath: string, db: RailgunDB, expectedCid?: string): Promise<Snapshot> {
+async function decodeSnapshotToDB (filePath: string, db: RailgunDB, expectedCid: string): Promise<Snapshot> {
   const decodedData = await decodeSnapshot(filePath, expectedCid)
 
   db.set('latestHeight', decodedData.endHeight)
