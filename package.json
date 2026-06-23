@@ -10,8 +10,7 @@
     "clean": "tsc --build --clean",
     "pretest": "npm run build",
     "test": "NODE_OPTIONS=--enable-source-maps brittle --coverage test/*.js",
-    "test:generate-events-dump": "cd scripts && npx tsx dump-events.ts",
-    "postinstall": "patch-package"
+    "test:generate-events-dump": "cd scripts && npx tsx dump-events.ts"
   },
   "repository": {
     "type": "git",
@@ -32,6 +31,7 @@
     "@ipld/car": "^5.3.3",
     "@ipld/dag-cbor": "^9.2.5",
     "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master",
+    "cborg": "^5.1.1",
     "dotenv": "^17.2.3",
     "@railgun-reloaded/scanner": "https://github.com/railgun-reloaded/scanner.git#dev",
     "multiformats": "^14.0.0"
@@ -42,7 +42,6 @@
     "@types/brittle": "^3.5.0",
     "@types/node": "^24.7.2",
     "brittle": "^3.19.0",
-    "patch-package": "^8.0.1",
     "typescript": "^5.9.3"
   }
 }
