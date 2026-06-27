@@ -3,9 +3,9 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { computeDagCborCID, dagCborCIDFromBytes, writeCarWithDagCborRoot } from '../src/lib/content'
+import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content'
 import { RailgunDB } from '../src/lib/database'
-import { initializeFormats } from '../src/lib/formats'
+import { getMultiformats, initializeFormats } from '../src/lib/formats'
 import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core'
 import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec'
 
@@ -55,14 +55,14 @@ test('Snapshot basic encoding', async (t) => {
       endHeight: firstBlock
     })
 
-    const cid = await dagCborCIDFromBytes(encodedData)
+    const cid = await artifactCIDFromBytes(encodedData)
 
     await writeSnapshot(out, encodedData)
-    const verify = await computeDagCborCID(out)
+    const verify = await computeArtifactCID(out)
     assert.equal(verify, cid)
 
     const root = await decodeSnapshot(out, cid)
-    assert.equal(root.version, 1)
+    assert.equal(root.version, 2)
     assert.equal(root.chainID, 1)
     assert.equal(BigInt(root.startHeight), firstBlock)
     assert.equal(BigInt(root.endHeight), firstBlock)
@@ -91,7 +91,7 @@ test('Snapshot basic encoding', async (t) => {
     await writeSnapshot(out1, encodedData1)
     await writeSnapshot(out2, encodedData2)
 
-    const [verify1, verify2] = await Promise.all([computeDagCborCID(out1), computeDagCborCID(out2)])
+    const [verify1, verify2] = await Promise.all([computeArtifactCID(out1), computeArtifactCID(out2)])
     assert.equal(verify1, verify2)
 
     cleanup(out1, out2)
@@ -105,10 +105,10 @@ test('Snapshot basic encoding', async (t) => {
     await db.set('blocks', rgEventBlocks)
 
     const encodedData1 = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[0].number })
-    const cid1 = await dagCborCIDFromBytes(encodedData1)
+    const cid1 = await artifactCIDFromBytes(encodedData1)
 
     const encodedData2 = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: rgEventBlocks[Math.min(1, rgEventBlocks.length - 1)].number, endHeight: rgEventBlocks[Math.min(1, rgEventBlocks.length - 1)].number })
-    const cid2 = await dagCborCIDFromBytes(encodedData2)
+    const cid2 = await artifactCIDFromBytes(encodedData2)
 
     assert.notEqual(cid1, cid2)
 
@@ -135,8 +135,8 @@ test('Snapshot .CAR Integration', async (t) => {
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: BigInt(data.blocks[0].number), endHeight: BigInt(data.blocks[0].number) })
     await writeSnapshot(out, encodedData)
 
-    const cid = await computeDagCborCID(out)
-    await writeCarWithDagCborRoot(out, car)
+    const cid = await computeArtifactCID(out)
+    await writeCarWithArtifactRoot(out, car)
 
     const bytes = await fs.promises.readFile(car)
     const { CarReader } = await import('@ipld/car')
@@ -150,6 +150,56 @@ test('Snapshot .CAR Integration', async (t) => {
   })
 })
 
+test('Snapshot artifact codec honesty', async (t) => {
+  const RAW_CODEC = 0x55
+
+  t.test('artifact CID uses the raw codec', async () => {
+    const firstBlock = BigInt(rgEventBlocks[0].number)
+    const encoded = encodeSnapshot(rgEventBlocks, {
+      chainID: 1,
+      startHeight: firstBlock,
+      endHeight: firstBlock
+    })
+
+    const cidStr = await artifactCIDFromBytes(encoded)
+    const { CID } = getMultiformats()
+    const cid = CID.parse(cidStr)
+
+    assert.equal(cid.code, RAW_CODEC)
+    assert.equal(cid.version, 1)
+  })
+
+  t.test('CAR root codec matches the encoded bytes (raw)', async () => {
+    const out = makeTmpPath('snap') + '.rsnap'
+    const car = makeTmpPath('car') + '.car'
+    const firstBlock = BigInt(rgEventBlocks[0].number)
+
+    const encoded = encodeSnapshot(rgEventBlocks, {
+      chainID: 1,
+      startHeight: firstBlock,
+      endHeight: firstBlock
+    })
+    await writeSnapshot(out, encoded)
+    await writeCarWithArtifactRoot(out, car)
+
+    const bytes = await fs.promises.readFile(car)
+    const { CarReader } = await import('@ipld/car')
+    const reader = await CarReader.fromBytes(bytes)
+    const [root] = await reader.getRoots()
+
+    assert.equal(root!.code, RAW_CODEC)
+
+    // The block stored in the CAR is byte-identical to the artifact and is
+    // addressed under the raw codec, so a codec-aware backend imports it
+    // without attempting (and failing) to decode it as a structured object.
+    const block = await reader.get(root!)
+    assert.ok(block)
+    assert.equal(Buffer.compare(Buffer.from(block!.bytes), Buffer.from(encoded)), 0)
+
+    cleanup(out, car)
+  })
+})
+
 test('Snapshot misc scenarios ', async (t) => {
   t.test('should handle empty block array', async () => {
     const dbPath = makeTmpPath('db')
@@ -159,10 +209,10 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
     await writeSnapshot(out, encodedData)
-    const cid = await dagCborCIDFromBytes(encodedData)
+    const cid = await artifactCIDFromBytes(encodedData)
     const root = await decodeSnapshot(out, cid)
 
-    assert.equal(root.version, 1)
+    assert.equal(root.version, 2)
     assert.equal(root.chainID, 1)
     assert.equal(root.blocks.length, 0)
     assert.equal(root.entryCount, 0)
@@ -178,7 +228,7 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: 17000000n, endHeight: 17000000n })
     await writeSnapshot(out, encodedData)
-    const cid = await dagCborCIDFromBytes(encodedData)
+    const cid = await artifactCIDFromBytes(encodedData)
 
     const root = await decodeSnapshot(out, cid)
     assert.equal(root.blocks.length, 0)
@@ -204,7 +254,7 @@ test('Snapshot misc scenarios ', async (t) => {
 
     const encodedData = await encodeSnapshotFromDB(db, { chainID: 1, startHeight: BigInt(data.blocks[0].number), endHeight: BigInt(data.blocks[0].number) })
     await writeSnapshot(out, encodedData)
-    const cid = await dagCborCIDFromBytes(encodedData)
+    const cid = await artifactCIDFromBytes(encodedData)
 
     const root = await decodeSnapshot(out, cid)
     assert.equal(root.blocks.length, 1)
@@ -224,13 +274,13 @@ test('Snapshot encoding determinism', async (t) => {
     await db1.set('blocks', rgEventBlocks)
 
     const encodedData = await encodeSnapshotFromDB(db1, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[0].number })
-    const cid1 = await dagCborCIDFromBytes(encodedData)
+    const cid1 = await artifactCIDFromBytes(encodedData)
 
     const db2 = new RailgunDB()
     await db2.set('blocks', rgEventBlocks)
 
     const encodedData2 = await encodeSnapshotFromDB(db2, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(1, rgEventBlocks.length - 1)].number })
-    const cid2 = await dagCborCIDFromBytes(encodedData2)
+    const cid2 = await artifactCIDFromBytes(encodedData2)
 
     assert.notEqual(cid1, cid2)
 
@@ -250,12 +300,12 @@ test('Snapshot encoding determinism', async (t) => {
     const db1 = new RailgunDB()
     await db1.set('blocks', rgEventBlocks)
     const encodedData1 = await encodeSnapshotFromDB(db1, metadata)
-    const cid1 = await dagCborCIDFromBytes(encodedData1)
+    const cid1 = await artifactCIDFromBytes(encodedData1)
 
     const db2 = new RailgunDB()
     await db2.set('blocks', rgEventBlocks)
     const encodedData2 = await encodeSnapshotFromDB(db2, metadata)
-    const cid2 = await dagCborCIDFromBytes(encodedData2)
+    const cid2 = await artifactCIDFromBytes(encodedData2)
 
     assert.equal(cid1, cid2)
 
@@ -271,17 +321,17 @@ test('Snapshot encoding determinism', async (t) => {
     await db1.set('blocks', rgEventBlocks)
 
     const encoded1 = await encodeSnapshotFromDB(db1, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(2, rgEventBlocks.length - 1)].number })
-    const cid1 = await dagCborCIDFromBytes(encoded1)
+    const cid1 = await artifactCIDFromBytes(encoded1)
 
     const db2 = new RailgunDB()
     await db2.set('blocks', rgEventBlocks)
     const encoded2 = await encodeSnapshotFromDB(db2, { chainID: 1, startHeight: rgEventBlocks[Math.min(1, rgEventBlocks.length - 1)].number, endHeight: rgEventBlocks[Math.min(3, rgEventBlocks.length - 1)].number })
-    const cid2 = await dagCborCIDFromBytes(encoded2)
+    const cid2 = await artifactCIDFromBytes(encoded2)
 
     const db3 = new RailgunDB()
     await db3.set('blocks', rgEventBlocks)
     const encoded3 = await encodeSnapshotFromDB(db3, { chainID: 1, startHeight: rgEventBlocks[Math.min(2, rgEventBlocks.length - 1)].number, endHeight: rgEventBlocks[Math.min(4, rgEventBlocks.length - 1)].number })
-    const cid3 = await dagCborCIDFromBytes(encoded3)
+    const cid3 = await artifactCIDFromBytes(encoded3)
 
     assert.notEqual(cid1, cid2)
     assert.notEqual(cid2, cid3)
@@ -297,12 +347,12 @@ test('Snapshot encoding determinism', async (t) => {
     const db1 = new RailgunDB()
     await db1.set('blocks', rgEventBlocks)
     const encoded1 = await encodeSnapshotFromDB(db1, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(2, rgEventBlocks.length - 1)].number })
-    const cid1 = await dagCborCIDFromBytes(encoded1)
+    const cid1 = await artifactCIDFromBytes(encoded1)
 
     const db2 = new RailgunDB()
     await db2.set('blocks', rgEventBlocks)
     const encoded2 = await encodeSnapshotFromDB(db2, { chainID: 1, startHeight: rgEventBlocks[3].number, endHeight: rgEventBlocks[Math.min(8, rgEventBlocks.length - 1)].number })
-    const cid2 = await dagCborCIDFromBytes(encoded2)
+    const cid2 = await artifactCIDFromBytes(encoded2)
 
     assert.notEqual(cid1, cid2)
 
@@ -317,17 +367,17 @@ test('Snapshot encoding determinism', async (t) => {
     const db1 = new RailgunDB()
     await db1.set('blocks', rgEventBlocks)
     const encoded1 = await encodeSnapshotFromDB(db1, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(1, rgEventBlocks.length - 1)].number })
-    const cid1 = await dagCborCIDFromBytes(encoded1)
+    const cid1 = await artifactCIDFromBytes(encoded1)
 
     const db2 = new RailgunDB()
     await db2.set('blocks', rgEventBlocks)
     const encoded2 = await encodeSnapshotFromDB(db2, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(2, rgEventBlocks.length - 1)].number })
-    const cid2 = await dagCborCIDFromBytes(encoded2)
+    const cid2 = await artifactCIDFromBytes(encoded2)
 
     const db3 = new RailgunDB()
     await db3.set('blocks', rgEventBlocks)
     const encoded3 = await encodeSnapshotFromDB(db3, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[Math.min(10, rgEventBlocks.length - 1)].number })
-    const cid3 = await dagCborCIDFromBytes(encoded3)
+    const cid3 = await artifactCIDFromBytes(encoded3)
 
     assert.notEqual(cid1, cid2)
     assert.notEqual(cid2, cid3)
@@ -345,7 +395,7 @@ test('Snapshot encoding determinism', async (t) => {
     await db1.set('blocks', rgEventBlocks)
     const startTime = Date.now()
     const encoded1 = await encodeSnapshotFromDB(db1, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[rgEventBlocks.length - 1].number })
-    const cid1 = await dagCborCIDFromBytes(encoded1)
+    const cid1 = await artifactCIDFromBytes(encoded1)
     const duration = Date.now() - startTime
 
     assert.ok(duration < 10000, `Large range took too long: ${duration}ms`)
@@ -354,7 +404,7 @@ test('Snapshot encoding determinism', async (t) => {
     await db2.set('blocks', rgEventBlocks)
     const encoded2 = await encodeSnapshotFromDB(db2, { chainID: 1, startHeight: rgEventBlocks[0].number, endHeight: rgEventBlocks[rgEventBlocks.length - 1].number })
     await writeSnapshot(out1, encoded2)
-    const cid2 = await dagCborCIDFromBytes(encoded2)
+    const cid2 = await artifactCIDFromBytes(encoded2)
 
     assert.equal(cid1, cid2)
 
@@ -383,7 +433,7 @@ test('Snapshot encoding determinism', async (t) => {
     })
 
     await writeSnapshot(outFile, encoded)
-    const cid = await dagCborCIDFromBytes(encoded)
+    const cid = await artifactCIDFromBytes(encoded)
 
     assert.ok(exists(outFile), 'snapshot file should exist')
 
@@ -438,7 +488,7 @@ test('Snapshot error handling', async (t) => {
     })
 
     await writeSnapshot(out, encoded)
-    const cid = await computeDagCborCID(out)
+    const cid = await computeArtifactCID(out)
 
     assert.ok(cid)
     await assert.rejects(
@@ -458,7 +508,7 @@ test('Snapshot error handling', async (t) => {
       startHeight: firstBlock,
       endHeight: firstBlock
     })
-    const expectedCid = await dagCborCIDFromBytes(encoded)
+    const expectedCid = await artifactCIDFromBytes(encoded)
     const tampered = new Uint8Array(encoded)
     tampered[tampered.length - 1]! ^= 0xff
 
@@ -486,7 +536,7 @@ test('Snapshot error handling', async (t) => {
     })
 
     const [cid] = await Promise.all([
-      dagCborCIDFromBytes(encoded),
+      artifactCIDFromBytes(encoded),
       writeSnapshot(out, encoded)])
 
     assert.ok(cid)

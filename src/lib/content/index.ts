@@ -64,43 +64,51 @@ async function writeCarWithRoot (filePath: string, carPath: string): Promise<voi
 }
 
 /**
- * Compute CID from encoded dagCbor data
- * @param filePath - Path to the file with encoded dagCbor
+ * Compute the artifact CID for an on-disk snapshot.
+ *
+ * The artifact is a brotli-compressed blob, so it is opaque bytes from IPLD's
+ * point of view. The CID therefore uses the `raw` codec (0x55) to honestly
+ * describe the byte encoding; codec-aware backends (Kubo, Helia, gateways) can
+ * import and serve it without attempting to decode it as a structured object.
+ * @param filePath - Path to the encoded snapshot artifact
  * @returns - Computed CID
  */
-async function computeDagCborCID (filePath: string): Promise<string> {
+async function computeArtifactCID (filePath: string): Promise<string> {
   const data = await fs.promises.readFile(filePath)
-  const { dagCbor } = getIPLD()
-  const { CID, sha256 } = getMultiformats()
-  const hash = await sha256.digest(new Uint8Array(data))
-  const cid = CID.createV1(dagCbor.code, hash)
-  return cid.toString()
+  return artifactCIDFromBytes(new Uint8Array(data))
 }
 
 /**
- * Compute CID from dagCbor encoded bytes
- * @param bytes - Input dagCbor bytes
+ * Compute the artifact CID for in-memory snapshot bytes.
+ *
+ * Uses the `raw` codec (0x55) because the bytes are an opaque, brotli-compressed
+ * blob rather than a traversable IPLD object. This keeps the codec honest so the
+ * block imports and resolves on standards-compliant IPFS tooling.
+ * @param bytes - Encoded snapshot artifact bytes
  * @returns - Computed CID
  */
-async function dagCborCIDFromBytes (bytes: Uint8Array): Promise<string> {
-  const { dagCbor } = getIPLD()
-  const { CID, sha256 } = getMultiformats()
+async function artifactCIDFromBytes (bytes: Uint8Array): Promise<string> {
+  const { CID, raw, sha256 } = getMultiformats()
   const hash = await sha256.digest(bytes)
-  const cid = CID.createV1(dagCbor.code, hash)
+  const cid = CID.createV1(raw.code, hash)
   return cid.toString()
 }
 
 /**
- * Write CAR object with dagCborRoot
+ * Write a CAR whose root is the snapshot artifact CID.
+ *
+ * The root block is stored under the `raw` codec (0x55) so its codec matches the
+ * opaque brotli-compressed bytes it addresses, letting the CAR import into a
+ * codec-aware backend without a decode error.
  * @param filePath - Input filepath
  * @param carPath - Output CAR Path
  */
-async function writeCarWithDagCborRoot (filePath: string, carPath: string): Promise<void> {
+async function writeCarWithArtifactRoot (filePath: string, carPath: string): Promise<void> {
   const data = await fs.promises.readFile(filePath)
-  const { dagCbor, car } = getIPLD()
-  const { CID, sha256 } = getMultiformats()
+  const { CID, raw, sha256 } = getMultiformats()
+  const { car } = getIPLD()
   const hash = await sha256.digest(new Uint8Array(data))
-  const cid = CID.createV1(dagCbor.code, hash)
+  const cid = CID.createV1(raw.code, hash)
   const { writer, out } = car.CarWriter.create([cid])
   const chunks: Uint8Array[] = []
   const collect = (async () => { for await (const c of out) chunks.push(c) })()
@@ -112,4 +120,4 @@ async function writeCarWithDagCborRoot (filePath: string, carPath: string): Prom
   await fs.promises.writeFile(carPath, buf)
 }
 
-export { computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithDagCborRoot, computeDagCborCID, dagCborCIDFromBytes }
+export { computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithArtifactRoot, computeArtifactCID, artifactCIDFromBytes }

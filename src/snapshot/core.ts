@@ -5,7 +5,7 @@ import type { EVMBlock } from '@railgun-reloaded/scanner'
 import { SubsquidProvider } from '@railgun-reloaded/scanner'
 
 import { getNetworkConfigFromChainID } from '../config'
-import { dagCborCIDFromBytes } from '../lib/content'
+import { artifactCIDFromBytes } from '../lib/content'
 import { RailgunDB } from '../lib/database'
 import { getMultiformats, initializeFormats } from '../lib/formats'
 
@@ -21,7 +21,10 @@ import type {
 import { minBigInts } from './utils'
 
 const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
-const SNAPSHOT_VERSION = 1
+// v2: artifact CID codec changed from dag-cbor (0x71) to raw (0x55) to honestly
+// describe the opaque brotli-compressed bytes. The on-disk artifact format is
+// unchanged, but the CID identity differs, so this is a format/version bump.
+const SNAPSHOT_VERSION = 2
 
 /**
  * Normalize a decoded height.
@@ -279,7 +282,7 @@ async function verifyArtifactCID (
     })
   }
 
-  const actualCid = await dagCborCIDFromBytes(bytes)
+  const actualCid = await artifactCIDFromBytes(bytes)
   if (!CID.parse(actualCid).equals(expected)) {
     throw new Error(
       `Snapshot CID mismatch: expected ${expectedCid}, got ${actualCid}`
@@ -507,7 +510,7 @@ async function createSnapshot (createOptions: {
 
   try { await (db as any).levelDB.close?.() } catch { }
 
-  return dagCborCIDFromBytes(encodedData)
+  return artifactCIDFromBytes(encodedData)
 }
 
 export { createSnapshot, writeSnapshot, encodeSnapshot, decodeArtifact, decodeSnapshot, encodeSnapshotFromDB, decodeSnapshotToDB }

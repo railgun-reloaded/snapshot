@@ -2,28 +2,46 @@
 
 > A package to create snapshot of railgun historical events
 
-## Snapshot Spec (rsnap v1)
+## Snapshot Spec (rsnap v2)
 
-- Canonical artifact: a single uncompressed DAG-CBOR-encoded root object. Its CIDv1 (codec=dag-cbor, multihash=sha2-256) is the sole identity of a snapshot.
+- Canonical artifact: a single brotli-compressed blob containing a DAG-CBOR
+  snapshot root object. Its CIDv1 uses codec `raw` (`0x55`) and multihash
+  `sha2-256` over the exact compressed `.rsnap` bytes.
 - Root schema [WIP](subject to change like FAFO-TXID)
 
-### Encoding and transport: DAG-CBOR / CAR
+### Encoding and transport: brotli / DAG-CBOR / raw IPFS block
 
-#### DAG-CBOR
+#### Snapshot bytes
 
-- Determinism: canonical map key ordering and stable binary encoding → identical bytes → identical CID for identical data.
-- Compact and typed: efficient binary compression; integers/byte strings are explicit and unambiguous.
+- The in-memory root object is encoded with deterministic DAG-CBOR.
+- The DAG-CBOR bytes are then brotli-compressed into the `.rsnap` artifact.
+- Consumers fetch the artifact bytes, verify the raw CID, decompress, DAG-CBOR
+  decode, and validate the root schema.
 
-#### CAR
+#### CID and IPLD behavior
 
-- We publish a CAR with the snapshot root set to the DAG-CBOR block’s CID. Importing this CAR on any node preserves the exact root CID.
-- You can also publish the raw root block directly > consumers fetch by CID.
+- The artifact CID labels the outer IPFS block as `raw`, not `dag-cbor`,
+  because the addressed bytes are compressed opaque bytes.
+- The artifact block is not IPLD-traversable. `ipfs dag get <artifact-cid>` is
+  not the consumer contract; fetch the raw block bytes and pass them to
+  `decodeArtifact` or `decodeSnapshot`.
+- CAR exports/imports must use the same raw artifact CID as their root so
+  codec-aware backends can import and serve the artifact without trying to
+  DAG-CBOR-decode compressed bytes.
 
 ### How is the CID deterministic
 
-- stable encoding: single DAG-CBOR implementation
+- stable encoding: single DAG-CBOR implementation plus deterministic brotli
+  settings
 - Structural validation: `entryCount` must match, `endHeight ≥ startHeight`, arrays preserve order, maps use string keys only.
-- Identity: CIDv1(dag-cbor, sha2-256) over the exact `.rsnap` bytes; any mutation changes the CID.
+- Identity: CIDv1(raw, sha2-256) over the exact compressed `.rsnap` bytes; any mutation changes the CID.
+
+### v1 to v2 transition
+
+v1 artifacts used the same compressed bytes but mislabeled the CID codec as
+`dag-cbor` (`0x71`). v2 fixes the label to `raw` (`0x55`), which changes every
+artifact CID and bumps the snapshot root `version` to `2`. Consumers on this
+version reject v1 artifacts with `unsupported version 1`.
 
 ## Install
 
