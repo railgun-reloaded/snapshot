@@ -1,6 +1,8 @@
-module.exports = [
+import railgunEslintConfig from '@railgun-reloaded/eslint-config'
+
+export default [
   {
     ignores: ['scripts/**']
   },
-  ...require('@railgun-reloaded/eslint-config')(),
+  ...railgunEslintConfig(),
 ]

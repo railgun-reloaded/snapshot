@@ -76,23 +76,17 @@ Producer-side encoder for callers that already hold scanner blocks and want the
 compressed `.rsnap` artifact bytes directly, without going through the
 DB-backed `createSnapshot` flow.
 
-`encodeSnapshot` is synchronous and does **not** initialize formats itself, so
-its output stays byte-identical for the same input. Call the exported
-`initializeFormats()` once during process startup before encoding; there is no
-need to deep-import `lib/formats`.
+`encodeSnapshot` is synchronous and its output is byte-identical for the same
+input. Import and call it directly — there is no setup step.
 
 ```ts
 import {
   encodeSnapshot,
-  initializeFormats,
   artifactCIDFromBytes
 } from "@railgun-reloaded/snapshot";
 import type { EncodeSnapshotMetadata } from "@railgun-reloaded/snapshot";
 
 async function main() {
-  // One-time initialization for the process.
-  await initializeFormats();
-
   const metadata: EncodeSnapshotMetadata = {
     chainID: 1,
     startHeight: 14737691n,

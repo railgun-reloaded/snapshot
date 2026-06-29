@@ -1,4 +1,4 @@
-import { getIPLD } from '../lib/formats'
+import { cborg, cborgTaglib, dagCbor } from '../lib/formats/index.js'
 
 /**
  * Class for handling encoding/decoding of DAGCBOR data
@@ -11,7 +11,6 @@ class DAGCBORCodec {
    */
   static encodeToBytes (data: Record<string, any>) {
     try {
-      const { cborg, cborgTaglib, dagCbor } = getIPLD()
       return cborg.encode(data, {
         ...dagCbor.encodeOptions,
         typeEncoders: {
@@ -31,7 +30,6 @@ class DAGCBORCodec {
    */
   static decodeFromBytes<T>(data: Uint8Array) {
     try {
-      const { cborg, cborgTaglib, dagCbor } = getIPLD()
       return cborg.decode(dagCbor.toByteView(data), {
         ...dagCbor.decodeOptions,
         tags: {

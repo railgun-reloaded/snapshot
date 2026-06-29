@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getIPLD, getMultiformats } from '../formats'
+import { create as createDigest } from 'multiformats/hashes/digest'
+
+import { CID, car, raw, sha256 } from '../formats/index.js'
 
 /**
  * Compute CID from the file
@@ -10,7 +12,6 @@ import { getIPLD, getMultiformats } from '../formats'
  */
 async function computeRawCID (filePath: string): Promise<string> {
   const data = await fs.promises.readFile(filePath)
-  const { CID, raw, sha256 } = getMultiformats()
   const hash = await sha256.digest(new Uint8Array(data))
   const cid = CID.createV1(raw.code, hash)
   return cid.toString()
@@ -22,9 +23,6 @@ async function computeRawCID (filePath: string): Promise<string> {
  * @returns Computed CID
  */
 async function rawCIDFromDigestBytes (digestBytes: Uint8Array): Promise<string> {
-  const { CID, raw } = getMultiformats()
-  const { create: createDigest } = await import('multiformats/hashes/digest')
-  const { sha256 } = await import('multiformats/hashes/sha2')
   const mh = createDigest(sha256.code, digestBytes)
   const cid = CID.createV1(raw.code, mh)
   return cid.toString()
@@ -48,8 +46,6 @@ async function validateFileCID (filePath: string, expectedCid: string): Promise<
  */
 async function writeCarWithRoot (filePath: string, carPath: string): Promise<void> {
   const data = await fs.promises.readFile(filePath)
-  const { CID, raw, sha256 } = getMultiformats()
-  const { car } = getIPLD()
   const hash = await sha256.digest(new Uint8Array(data))
   const cid = CID.createV1(raw.code, hash)
   const { writer, out } = car.CarWriter.create([cid])
@@ -88,7 +84,6 @@ async function computeArtifactCID (filePath: string): Promise<string> {
  * @returns - Computed CID
  */
 async function artifactCIDFromBytes (bytes: Uint8Array): Promise<string> {
-  const { CID, raw, sha256 } = getMultiformats()
   const hash = await sha256.digest(bytes)
   const cid = CID.createV1(raw.code, hash)
   return cid.toString()
@@ -105,8 +100,6 @@ async function artifactCIDFromBytes (bytes: Uint8Array): Promise<string> {
  */
 async function writeCarWithArtifactRoot (filePath: string, carPath: string): Promise<void> {
   const data = await fs.promises.readFile(filePath)
-  const { CID, raw, sha256 } = getMultiformats()
-  const { car } = getIPLD()
   const hash = await sha256.digest(new Uint8Array(data))
   const cid = CID.createV1(raw.code, hash)
   const { writer, out } = car.CarWriter.create([cid])

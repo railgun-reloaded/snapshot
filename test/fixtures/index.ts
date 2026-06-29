@@ -1,5 +1,8 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // todo: see if we actually need this or we can do a generic type to import this
 // anyway its mostly just to work around a json dump of events

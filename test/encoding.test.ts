@@ -1,26 +1,20 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
-import { test } from 'brittle'
-
-import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content'
-import { RailgunDB } from '../src/lib/database'
-import { getMultiformats, initializeFormats } from '../src/lib/formats'
-import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core'
-import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec'
-
-import { loadBlockchainEvents } from './fixtures'
-import { TEST_VECTOR_EVENTS3 } from './test-vectors'
-import { cleanup, exists, makeTmpPath } from './utils'
-
 // @ts-ignore - hook not in type definitions but exists in 3.19.0
-const { hook } = require('brittle')
+import { hook, test } from 'brittle'
+
+import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content/index.js'
+import { RailgunDB } from '../src/lib/database/index.js'
+import { CID } from '../src/lib/formats/index.js'
+import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core.js'
+import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec.js'
+
+import { loadBlockchainEvents } from './fixtures/index.js'
+import { TEST_VECTOR_EVENTS3 } from './test-vectors.js'
+import { cleanup, exists, makeTmpPath } from './utils.js'
 
 let rgEventBlocks: any[] = []
-
-hook('setup formats initialization', async () => {
-  await initializeFormats()
-})
 
 hook('setup railgun blocks on db', async () => {
   const data = loadBlockchainEvents()
@@ -162,7 +156,6 @@ test('Snapshot artifact codec honesty', async (t) => {
     })
 
     const cidStr = await artifactCIDFromBytes(encoded)
-    const { CID } = getMultiformats()
     const cid = CID.parse(cidStr)
 
     assert.equal(cid.code, RAW_CODEC)

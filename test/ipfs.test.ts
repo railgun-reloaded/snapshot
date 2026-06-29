@@ -3,9 +3,9 @@ import fs from 'node:fs'
 
 import { test } from 'brittle'
 
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content/index.js'
 
-import { cleanup, makeTmpPath, writeFile } from './utils'
+import { cleanup, makeTmpPath, writeFile } from './utils.js'
 
 test('computeRawCID deterministic for identical bytes', async () => {
   const p1 = makeTmpPath('blob') + '/file.bin'

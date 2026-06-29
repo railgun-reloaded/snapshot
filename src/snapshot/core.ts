@@ -4,12 +4,12 @@ import zlib from 'zlib'
 import type { EVMBlock } from '@railgun-reloaded/scanner'
 import { SubsquidProvider } from '@railgun-reloaded/scanner'
 
-import { getNetworkConfigFromChainID } from '../config'
-import { artifactCIDFromBytes } from '../lib/content'
-import { RailgunDB } from '../lib/database'
-import { getMultiformats, initializeFormats } from '../lib/formats'
+import { getNetworkConfigFromChainID } from '../config/index.js'
+import { artifactCIDFromBytes } from '../lib/content/index.js'
+import { RailgunDB } from '../lib/database/index.js'
+import { CID } from '../lib/formats/index.js'
 
-import { DAGCBORCodec } from './dagcbor-codec'
+import { DAGCBORCodec } from './dagcbor-codec.js'
 import type {
   Snapshot,
   SnapshotAction,
@@ -17,8 +17,8 @@ import type {
   SnapshotBytes,
   SnapshotMemo,
   SnapshotTransaction
-} from './types'
-import { minBigInts } from './utils'
+} from './types.js'
+import { minBigInts } from './utils.js'
 
 const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
 const SNAPSHOT_VERSION = 1
@@ -278,7 +278,6 @@ async function verifyArtifactCID (
   bytes: Uint8Array,
   expectedCid: string
 ): Promise<void> {
-  const { CID } = getMultiformats()
   let expected
   try {
     expected = CID.parse(expectedCid)
@@ -308,7 +307,6 @@ async function verifyArtifactCID (
  * @returns Decoded and validated snapshot.
  */
 async function decodeArtifact (bytes: Uint8Array, expectedCid: string): Promise<Snapshot> {
-  await initializeFormats()
   await verifyArtifactCID(bytes, expectedCid)
 
   const decompressed = zlib.brotliDecompressSync(bytes, {
@@ -337,10 +335,8 @@ async function writeSnapshot (
  * Filter the input data within the range of start and end height and create snapshot data.
  * Encode the snapshot using DAGCBOR encoding and compress it using brotli compression.
  *
- * Formats must be initialized before calling this. Call `initializeFormats()`
- * once during process startup; `encodeSnapshot` is synchronous and does not
- * initialize formats itself so that its output stays byte-identical for the
- * same input.
+ * `encodeSnapshot` is synchronous; its output is byte-identical for the same
+ * input.
  * @param blocks - Input block to encode
  * @param metadata - Chain/Block related metadata
  * @param metadata.chainID - ChainID of the network
