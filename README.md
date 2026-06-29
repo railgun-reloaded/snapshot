@@ -38,11 +38,9 @@
 
 ### Artifact format
 
-There is a single current artifact format. The snapshot root carries
-`version` `1`, and the artifact CID uses codec `raw` (`0x55`) over the exact
-compressed `.rsnap` bytes. There is no prior on-artifact format in the wild, so
-there is no migration to perform; consumers reject any other root `version`
-with `unsupported version <n>`.
+There is a single artifact format. The snapshot root carries `version` `1`, and
+the artifact CID uses codec `raw` (`0x55`) over the exact compressed `.rsnap`
+bytes. Consumers reject any other root `version` with `unsupported version <n>`.
 
 ## Install
 
