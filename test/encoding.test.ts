@@ -62,7 +62,7 @@ test('Snapshot basic encoding', async (t) => {
     assert.equal(verify, cid)
 
     const root = await decodeSnapshot(out, cid)
-    assert.equal(root.version, 2)
+    assert.equal(root.version, 1)
     assert.equal(root.chainID, 1)
     assert.equal(BigInt(root.startHeight), firstBlock)
     assert.equal(BigInt(root.endHeight), firstBlock)
@@ -212,7 +212,7 @@ test('Snapshot misc scenarios ', async (t) => {
     const cid = await artifactCIDFromBytes(encodedData)
     const root = await decodeSnapshot(out, cid)
 
-    assert.equal(root.version, 2)
+    assert.equal(root.version, 1)
     assert.equal(root.chainID, 1)
     assert.equal(root.blocks.length, 0)
     assert.equal(root.entryCount, 0)

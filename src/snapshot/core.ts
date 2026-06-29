@@ -21,10 +21,10 @@ import type {
 import { minBigInts } from './utils'
 
 const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
-// v2: artifact CID codec changed from dag-cbor (0x71) to raw (0x55) to honestly
-// describe the opaque brotli-compressed bytes. The on-disk artifact format is
-// unchanged, but the CID identity differs, so this is a format/version bump.
-const SNAPSHOT_VERSION = 2
+// The artifact CID uses the raw codec (0x55) to honestly describe the opaque
+// brotli-compressed bytes it addresses. This is the single current artifact
+// format; there is no prior on-artifact format to migrate from.
+const SNAPSHOT_VERSION = 1
 
 /**
  * Normalize a decoded height.

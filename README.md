@@ -2,7 +2,7 @@
 
 > A package to create snapshot of railgun historical events
 
-## Snapshot Spec (rsnap v2)
+## Snapshot Spec (rsnap)
 
 - Canonical artifact: a single brotli-compressed blob containing a DAG-CBOR
   snapshot root object. Its CIDv1 uses codec `raw` (`0x55`) and multihash
@@ -36,12 +36,13 @@
 - Structural validation: `entryCount` must match, `endHeight ≥ startHeight`, arrays preserve order, maps use string keys only.
 - Identity: CIDv1(raw, sha2-256) over the exact compressed `.rsnap` bytes; any mutation changes the CID.
 
-### v1 to v2 transition
+### Artifact format
 
-v1 artifacts used the same compressed bytes but mislabeled the CID codec as
-`dag-cbor` (`0x71`). v2 fixes the label to `raw` (`0x55`), which changes every
-artifact CID and bumps the snapshot root `version` to `2`. Consumers on this
-version reject v1 artifacts with `unsupported version 1`.
+There is a single current artifact format. The snapshot root carries
+`version` `1`, and the artifact CID uses codec `raw` (`0x55`) over the exact
+compressed `.rsnap` bytes. There is no prior on-artifact format in the wild, so
+there is no migration to perform; consumers reject any other root `version`
+with `unsupported version <n>`.
 
 ## Install
 
