@@ -1,4 +1,5 @@
-export { createSnapshot, writeSnapshot, decodeArtifact, decodeSnapshot } from './snapshot/core'
+export { createSnapshot, writeSnapshot, encodeSnapshot, decodeArtifact, decodeSnapshot } from './snapshot/core'
+export type { EncodeSnapshotMetadata } from './snapshot/core'
 export type { Snapshot, SnapshotAction, SnapshotBlock, SnapshotBytes, SnapshotMemo, SnapshotMemoBytes, SnapshotTransaction } from './snapshot/types'
 export { computeArtifactCID, artifactCIDFromBytes, computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithArtifactRoot } from './lib/content'
 export { RailgunDB } from './lib/database'

@@ -70,6 +70,44 @@ async function main() {
 main().catch(console.error);
 ```
 
+### `encodeSnapshot`
+
+Producer-side encoder for callers that already hold scanner blocks and want the
+compressed `.rsnap` artifact bytes directly, without going through the
+DB-backed `createSnapshot` flow.
+
+`encodeSnapshot` is synchronous and does **not** initialize formats itself, so
+its output stays byte-identical for the same input. Call the exported
+`initializeFormats()` once during process startup before encoding; there is no
+need to deep-import `lib/formats`.
+
+```ts
+import {
+  encodeSnapshot,
+  initializeFormats,
+  artifactCIDFromBytes
+} from "@railgun-reloaded/snapshot";
+import type { EncodeSnapshotMetadata } from "@railgun-reloaded/snapshot";
+
+async function main() {
+  // One-time initialization for the process.
+  await initializeFormats();
+
+  const metadata: EncodeSnapshotMetadata = {
+    chainID: 1,
+    startHeight: 14737691n,
+    endHeight: 18500000n
+  };
+
+  const bytes = encodeSnapshot(blocks, metadata); // Uint8Array (.rsnap bytes)
+  const cid = await artifactCIDFromBytes(bytes);
+
+  console.log("Artifact CID:", cid);
+}
+
+main().catch(console.error);
+```
+
 ### `restoreSnapshot`
 
 ```ts

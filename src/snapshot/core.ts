@@ -24,6 +24,15 @@ const MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024
 const SNAPSHOT_VERSION = 1
 
 /**
+ * Chain and block-range metadata for the snapshot encoder.
+ */
+type EncodeSnapshotMetadata = {
+  chainID: number
+  startHeight: bigint
+  endHeight: bigint
+}
+
+/**
  * Normalize a decoded height.
  * @param value - Decoded value.
  * @param fieldName - Field name for errors.
@@ -326,7 +335,12 @@ async function writeSnapshot (
 
 /**
  * Filter the input data within the range of start and end height and create snapshot data.
- * Encode the snapshot using DAGCBOR encoding and compress it using brotli compression
+ * Encode the snapshot using DAGCBOR encoding and compress it using brotli compression.
+ *
+ * Formats must be initialized before calling this. Call `initializeFormats()`
+ * once during process startup; `encodeSnapshot` is synchronous and does not
+ * initialize formats itself so that its output stays byte-identical for the
+ * same input.
  * @param blocks - Input block to encode
  * @param metadata - Chain/Block related metadata
  * @param metadata.chainID - ChainID of the network
@@ -334,11 +348,7 @@ async function writeSnapshot (
  * @param metadata.endHeight - End Height of the block
  * @returns - Encoded data
  */
-function encodeSnapshot (blocks: EVMBlock[], metadata: {
-  chainID: number,
-  startHeight: bigint,
-  endHeight: bigint
-}) : Uint8Array {
+function encodeSnapshot (blocks: EVMBlock[], metadata: EncodeSnapshotMetadata) : Uint8Array {
   const { chainID, startHeight, endHeight } = metadata
 
   // Validate height range
@@ -387,11 +397,7 @@ function encodeSnapshot (blocks: EVMBlock[], metadata: {
  * @param metadata.endHeight - End Height of the block
  * @returns - Encoded data
  */
-async function encodeSnapshotFromDB (db: RailgunDB, metadata: {
-  chainID: number,
-  startHeight: bigint,
-  endHeight: bigint
-}) : Promise<Uint8Array> {
+async function encodeSnapshotFromDB (db: RailgunDB, metadata: EncodeSnapshotMetadata) : Promise<Uint8Array> {
   const blocks = await db.get<EVMBlock[]>('blocks') ?? []
   return encodeSnapshot(blocks, metadata)
 }
@@ -511,3 +517,4 @@ async function createSnapshot (createOptions: {
 }
 
 export { createSnapshot, writeSnapshot, encodeSnapshot, decodeArtifact, decodeSnapshot, encodeSnapshotFromDB, decodeSnapshotToDB }
+export type { EncodeSnapshotMetadata }
