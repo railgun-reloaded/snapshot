@@ -10,7 +10,7 @@
     "build": "tsc --build",
     "clean": "tsc --build --clean",
     "pretest": "npm run build",
-    "test": "NODE_OPTIONS=--enable-source-maps brittle --coverage test/*.js",
+    "test": "NODE_OPTIONS=--enable-source-maps node --test 'test/**/*.test.js'",
     "test:generate-events-dump": "cd scripts && npx tsx dump-events.ts"
   },
   "repository": {
@@ -40,9 +40,7 @@
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
-    "@types/brittle": "^3.5.0",
     "@types/node": "^24.7.2",
-    "brittle": "^3.19.0",
     "typescript": "^5.9.3"
   }
 }

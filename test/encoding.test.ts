@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-
-// @ts-ignore - hook not in type definitions but exists in 3.19.0
-import { hook, test } from 'brittle'
+import { before, test } from 'node:test'
 
 import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content/index.js'
 import { RailgunDB } from '../src/lib/database/index.js'
@@ -16,7 +14,7 @@ import { cleanup, exists, makeTmpPath } from './utils.js'
 
 let rgEventBlocks: any[] = []
 
-hook('setup railgun blocks on db', async () => {
+before(() => {
   const data = loadBlockchainEvents()
   rgEventBlocks = data.blocks.map(block => ({
     ...block,
@@ -39,7 +37,7 @@ test('DAGCBORCodec bigint tags', () => {
 })
 
 test('Snapshot basic encoding', async (t) => {
-  t.test('should produce same cid from bytes and snapshot file', async () => {
+  await t.test('should produce same cid from bytes and snapshot file', async () => {
     const out = makeTmpPath('snap') + '.rsnap'
     const firstBlock = BigInt(rgEventBlocks[0].number)
 
@@ -67,7 +65,7 @@ test('Snapshot basic encoding', async (t) => {
     cleanup(out)
   })
 
-  t.test('should produce identical CID for identical real blockchain data', async () => {
+  await t.test('should produce identical CID for identical real blockchain data', async () => {
     const blockNumber = rgEventBlocks[0].number
 
     const metaData = {
@@ -91,7 +89,7 @@ test('Snapshot basic encoding', async (t) => {
     cleanup(out1, out2)
   })
 
-  t.test('should produce different CID for different real blocks', async () => {
+  await t.test('should produce different CID for different real blocks', async () => {
     const dbPath = makeTmpPath('db')
     const db = new RailgunDB()
 
@@ -111,7 +109,7 @@ test('Snapshot basic encoding', async (t) => {
 })
 
 test('Snapshot .CAR Integration', async (t) => {
-  t.test('should have root CID matching encoded file CID', async () => {
+  await t.test('should have root CID matching encoded file CID', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const car = makeTmpPath('car') + '.car'
@@ -147,7 +145,7 @@ test('Snapshot .CAR Integration', async (t) => {
 test('Snapshot artifact codec honesty', async (t) => {
   const RAW_CODEC = 0x55
 
-  t.test('artifact CID uses the raw codec', async () => {
+  await t.test('artifact CID uses the raw codec', async () => {
     const firstBlock = BigInt(rgEventBlocks[0].number)
     const encoded = encodeSnapshot(rgEventBlocks, {
       chainID: 1,
@@ -162,7 +160,7 @@ test('Snapshot artifact codec honesty', async (t) => {
     assert.equal(cid.version, 1)
   })
 
-  t.test('CAR root codec matches the encoded bytes (raw)', async () => {
+  await t.test('CAR root codec matches the encoded bytes (raw)', async () => {
     const out = makeTmpPath('snap') + '.rsnap'
     const car = makeTmpPath('car') + '.car'
     const firstBlock = BigInt(rgEventBlocks[0].number)
@@ -194,7 +192,7 @@ test('Snapshot artifact codec honesty', async (t) => {
 })
 
 test('Snapshot misc scenarios ', async (t) => {
-  t.test('should handle empty block array', async () => {
+  await t.test('should handle empty block array', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
@@ -213,7 +211,7 @@ test('Snapshot misc scenarios ', async (t) => {
     cleanup(dbPath, out)
   })
 
-  t.test('should handle null/undefined blocks', async () => {
+  await t.test('should handle null/undefined blocks', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
@@ -230,7 +228,7 @@ test('Snapshot misc scenarios ', async (t) => {
     cleanup(dbPath, out)
   })
 
-  t.test('should handle blocks with empty transactions', async () => {
+  await t.test('should handle blocks with empty transactions', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
@@ -259,7 +257,7 @@ test('Snapshot misc scenarios ', async (t) => {
 })
 
 test('Snapshot encoding determinism', async (t) => {
-  t.test('should produce different CIDs for single block vs multiple blocks', async () => {
+  await t.test('should produce different CIDs for single block vs multiple blocks', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
 
@@ -280,7 +278,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2)
   })
 
-  t.test('should produce identical CIDs for same block ranges', async () => {
+  await t.test('should produce identical CIDs for same block ranges', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
 
@@ -305,7 +303,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2)
   })
 
-  t.test('should produce different CIDs for shifted ranges', async () => {
+  await t.test('should produce different CIDs for shifted ranges', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
     const dbPath3 = makeTmpPath('db')
@@ -333,7 +331,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2, dbPath3)
   })
 
-  t.test('should produce different CIDs for overlapping ranges', async () => {
+  await t.test('should produce different CIDs for overlapping ranges', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
 
@@ -352,7 +350,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2)
   })
 
-  t.test('should produce different CIDs for different range sizes', async () => {
+  await t.test('should produce different CIDs for different range sizes', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
     const dbPath3 = makeTmpPath('db')
@@ -379,7 +377,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2, dbPath3)
   })
 
-  t.test('should maintain determinism for all available blocks', async () => {
+  await t.test('should maintain determinism for all available blocks', async () => {
     const dbPath1 = makeTmpPath('db')
     const dbPath2 = makeTmpPath('db')
     const out1 = makeTmpPath('snap') + '.rsnap'
@@ -411,7 +409,7 @@ test('Snapshot encoding determinism', async (t) => {
     cleanup(dbPath1, dbPath2, out1)
   })
 
-  test('writeSnapshot and recover it to entries', async (assert) => {
+  await t.test('writeSnapshot and recover it to entries', async () => {
     const dbPath = makeTmpPath('db')
     const outFile = makeTmpPath('snapshot') + '.rsnap'
     const db = new RailgunDB(dbPath)
@@ -433,14 +431,14 @@ test('Snapshot encoding determinism', async (t) => {
     const restored = await decodeSnapshot(outFile, cid)
     assert.ok(restored, 'restored object should be defined')
 
-    assert.alike.coercively(TEST_VECTOR_EVENTS3, restored.blocks, 'restored object must be same as actual object')
+    assert.deepStrictEqual(restored.blocks, TEST_VECTOR_EVENTS3, 'restored object must be same as actual object')
 
     cleanup(dbPath, outFile)
   })
 })
 
 test('Snapshot error handling', async (t) => {
-  t.test('should handle invalid block range (startHeight > endHeight)', async () => {
+  await t.test('should handle invalid block range (startHeight > endHeight)', async () => {
     const dbPath = makeTmpPath('db')
     const db = new RailgunDB()
     await db.set('blocks', rgEventBlocks)
@@ -459,7 +457,7 @@ test('Snapshot error handling', async (t) => {
     cleanup(dbPath)
   })
 
-  t.test('should reject malformed decoded block data', async () => {
+  await t.test('should reject malformed decoded block data', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
@@ -492,7 +490,7 @@ test('Snapshot error handling', async (t) => {
     cleanup(dbPath, out)
   })
 
-  t.test('should reject snapshot bytes that do not match the expected CID', async () => {
+  await t.test('should reject snapshot bytes that do not match the expected CID', async () => {
     const out = makeTmpPath('snap') + '.rsnap'
     const firstBlock = BigInt(rgEventBlocks[0].number)
 
@@ -515,7 +513,7 @@ test('Snapshot error handling', async (t) => {
     cleanup(out)
   })
 
-  t.test('should handle blocks outside requested range', async () => {
+  await t.test('should handle blocks outside requested range', async () => {
     const dbPath = makeTmpPath('db')
     const out = makeTmpPath('snap') + '.rsnap'
     const db = new RailgunDB()
