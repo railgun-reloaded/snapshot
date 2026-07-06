@@ -17,6 +17,7 @@ import type {
   SnapshotBytes,
   SnapshotCommitment,
   SnapshotMemo,
+  SnapshotMemoCommitment,
   SnapshotTransaction
 } from './types.js'
 import { minBigInts } from './utils.js'
@@ -33,6 +34,13 @@ type EncodeSnapshotMetadata = {
   startHeight: bigint
   endHeight: bigint
 }
+
+type SnapshotCommitmentPosition = Pick<
+  SnapshotCommitment,
+  'treeNumber' | 'treePosition'
+>
+
+type EncodeSnapshotBlock = EVMBlock | SnapshotBlock
 
 /**
  * Normalize a decoded height.
@@ -117,15 +125,17 @@ function isMemo (value: unknown): value is SnapshotMemo {
 }
 
 /**
- * Return the configured deployment block when this package knows the chain.
+ * Return the configured deployment block for a supported chain.
  * @param chainID - EVM chain ID.
- * @returns Deployment block, if known.
+ * @returns Deployment block.
  */
-function getDeploymentBlock (chainID: number): bigint | undefined {
+function getDeploymentBlock (chainID: number): bigint {
   try {
     return getNetworkConfigFromChainID(chainID).deploymentBlock
-  } catch {
-    return undefined
+  } catch (err) {
+    throw new Error(`Invalid snapshot: unknown chainID ${chainID}`, {
+      cause: err
+    })
   }
 }
 
@@ -160,6 +170,14 @@ function validateCommitmentPosition (
   return { treeNumber, treePosition }
 }
 
+function validateCommitment (
+  value: unknown,
+  requireMemo: true
+): SnapshotMemoCommitment
+function validateCommitment (
+  value: unknown,
+  requireMemo: false
+): SnapshotCommitment
 /**
  * Validate one decoded commitment payload.
  * @param value - Decoded commitment.
@@ -182,14 +200,156 @@ function validateCommitment (
     treePosition
   }
 
-  if (requireMemo || commitment['memo'] !== undefined) {
-    if (!isMemo(commitment['memo'])) {
+  if (requireMemo) {
+    const memo = commitment['memo']
+    if (!isMemo(memo)) {
       throw new Error('Invalid snapshot: commitment memo has invalid bytes')
     }
-    validated.memo = commitment['memo']
+    return {
+      ...validated,
+      memo
+    }
+  }
+
+  if (commitment['memo'] !== undefined) {
+    const memo = commitment['memo']
+    if (!isMemo(memo)) {
+      throw new Error('Invalid snapshot: commitment memo has invalid bytes')
+    }
+    validated.memo = memo
   }
 
   return validated
+}
+
+function canonicalizeCommitmentForEncode (value: unknown): SnapshotCommitment
+function canonicalizeCommitmentForEncode (
+  value: unknown,
+  requireMemo: true
+): SnapshotMemoCommitment
+function canonicalizeCommitmentForEncode (
+  value: unknown,
+  requireMemo: false
+): SnapshotCommitment
+/**
+ * Normalize scanner commitment positions for producer-side encoding.
+ * Snapshot artifacts store the leaf position inside the represented tree, but
+ * scanner RPC formatting can expose the global insertion position.
+ * @param value - Candidate commitment.
+ * @param requireMemo - Whether this commitment shape requires a memo payload.
+ * @returns Snapshot commitment with per-tree position.
+ */
+function canonicalizeCommitmentForEncode (
+  value: unknown,
+  requireMemo = false
+): SnapshotCommitment {
+  const commitment = requireRecord(value, 'commitment')
+  const treeNumber = requireInteger(
+    commitment['treeNumber'],
+    'commitment treeNumber'
+  )
+  const treePosition = requireInteger(
+    commitment['treePosition'],
+    'commitment treePosition'
+  )
+
+  if (treeNumber < 0) {
+    throw new Error('Invalid snapshot: commitment treeNumber cannot be negative')
+  }
+
+  let normalizedTreePosition = treePosition
+  if (treePosition >= TREE_MAX_ITEMS) {
+    if (Math.floor(treePosition / TREE_MAX_ITEMS) === treeNumber) {
+      normalizedTreePosition = treePosition % TREE_MAX_ITEMS
+    }
+  }
+
+  const canonicalized: SnapshotCommitment = {
+    ...commitment,
+    treeNumber,
+    treePosition: normalizedTreePosition
+  }
+
+  if (requireMemo) {
+    const memo = commitment['memo']
+    if (!isMemo(memo)) {
+      throw new Error('Invalid snapshot: commitment memo has invalid bytes')
+    }
+    return {
+      ...canonicalized,
+      memo
+    }
+  }
+
+  if (commitment['memo'] !== undefined) {
+    const memo = commitment['memo']
+    if (!isMemo(memo)) {
+      throw new Error('Invalid snapshot: commitment memo has invalid bytes')
+    }
+    canonicalized.memo = memo
+  }
+
+  return canonicalized
+}
+
+/**
+ * Normalize one action for producer-side encoding while preserving extra fields.
+ * @param value - Candidate action.
+ * @returns Snapshot action.
+ */
+function canonicalizeActionForEncode (value: unknown): SnapshotAction {
+  const action = requireRecord(value, 'action')
+  if (
+    typeof action['actionType'] !== 'string' ||
+    action['actionType'].length === 0
+  ) {
+    throw new Error('Invalid snapshot: missing or invalid actionType')
+  }
+
+  const canonicalized: SnapshotAction = {
+    ...action,
+    actionType: action['actionType']
+  }
+
+  if (action['commitment'] !== undefined) {
+    canonicalized.commitment = canonicalizeCommitmentForEncode(
+      action['commitment']
+    )
+  }
+
+  if (action['commitments'] !== undefined) {
+    if (!Array.isArray(action['commitments'])) {
+      throw new Error('Invalid snapshot: commitments must be an array')
+    }
+    canonicalized.commitments = action['commitments'].map(value =>
+      canonicalizeCommitmentForEncode(value, true)
+    )
+  }
+
+  return canonicalized
+}
+
+/**
+ * Normalize action batches for producer-side encoding.
+ * @param value - Candidate action batches.
+ * @returns Snapshot action batches.
+ */
+function canonicalizeActionBatchesForEncode (
+  value: unknown
+): SnapshotAction[][] {
+  if (value === undefined) {
+    return []
+  }
+  if (!Array.isArray(value)) {
+    throw new Error('Invalid snapshot: transaction actions must be an array')
+  }
+
+  return value.map((batch) => {
+    if (!Array.isArray(batch)) {
+      throw new Error('Invalid snapshot: transaction action batch must be an array')
+    }
+    return batch.map(canonicalizeActionForEncode)
+  })
 }
 
 /**
@@ -342,25 +502,72 @@ function validateBlockAndTransactionOrdering (
 }
 
 /**
- * Yield commitment entries in artifact order.
+ * Yield commitment batches in artifact order.
  * @param blocks - Decoded blocks.
- * @yields Commitment entries.
+ * @yields Commitment batches.
  */
-function * commitmentEntries (
+function * commitmentBatches (
   blocks: SnapshotBlock[]
-): Generator<Pick<SnapshotCommitment, 'treeNumber' | 'treePosition'>> {
+): Generator<SnapshotCommitmentPosition[]> {
   for (const block of blocks) {
     for (const transaction of block.transactions) {
       for (const batch of transaction.actions) {
         for (const action of batch) {
+          const commitments: SnapshotCommitmentPosition[] = []
           if (action.commitment !== undefined) {
-            yield action.commitment
+            commitments.push(action.commitment)
           }
           for (const commitment of action.commitments ?? []) {
-            yield commitment
+            commitments.push(commitment)
+          }
+          if (commitments.length > 0) {
+            yield commitments
           }
         }
       }
+    }
+  }
+}
+
+/**
+ * Validate one action-level commitment batch.
+ * @param batch - Commitment batch.
+ */
+function validateCommitmentBatch (
+  batch: SnapshotCommitmentPosition[]
+): void {
+  const firstCommitment = batch[0]
+  if (firstCommitment === undefined) {
+    return
+  }
+  const batchTreeNumber = firstCommitment.treeNumber
+
+  let previousPosition: number | undefined
+  for (const commitment of batch) {
+    const { treeNumber, treePosition } = commitment
+
+    if (treeNumber !== batchTreeNumber) {
+      throw new Error(
+        'Invalid snapshot: commitment batches cannot cross tree boundaries'
+      )
+    }
+
+    const positionBeforeCommitment = previousPosition
+    previousPosition = assertAscendingKey(
+      treePosition,
+      positionBeforeCommitment,
+      kind => kind === 'duplicate'
+        ? `duplicate commitment position ${treePosition} in tree ${treeNumber}`
+        : `commitment positions in tree ${treeNumber} must be strictly ascending`
+    )
+
+    if (
+      positionBeforeCommitment !== undefined &&
+      treePosition !== positionBeforeCommitment + 1
+    ) {
+      throw new Error(
+        `Invalid snapshot: commitment position gap in tree ${treeNumber}`
+      )
     }
   }
 }
@@ -370,21 +577,28 @@ function * commitmentEntries (
  * @param snapshot - Decoded snapshot.
  */
 function validateCommitmentOrdering (
-  snapshot: Pick<Snapshot, 'chainID' | 'startHeight' | 'blocks'>
+  snapshot: Pick<Snapshot, 'chainID' | 'startHeight' | 'endHeight' | 'blocks'>
 ): void {
   const deploymentBlock = getDeploymentBlock(snapshot.chainID)
-  const requiresColdStartPrefix = deploymentBlock !== undefined &&
-    snapshot.startHeight === deploymentBlock
+  const requiresColdStartPrefix = snapshot.startHeight <= deploymentBlock &&
+    snapshot.endHeight >= deploymentBlock
 
   let previousTreeNumber: number | undefined
-  let isFirstCommitment = true
-  const previousPositionByTree = new Map<number, number>()
+  let previousTreePosition: number | undefined
 
-  for (const commitment of commitmentEntries(snapshot.blocks)) {
-    const { treeNumber, treePosition } = commitment
+  for (const batch of commitmentBatches(snapshot.blocks)) {
+    validateCommitmentBatch(batch)
+
+    const firstCommitment = batch[0]
+    const lastCommitment = batch[batch.length - 1]
+    if (firstCommitment === undefined || lastCommitment === undefined) {
+      continue
+    }
+
+    const { treeNumber, treePosition } = firstCommitment
 
     if (
-      isFirstCommitment &&
+      previousTreeNumber === undefined &&
       requiresColdStartPrefix &&
       (treeNumber !== 0 || treePosition !== 0)
     ) {
@@ -393,21 +607,30 @@ function validateCommitmentOrdering (
       )
     }
 
-    if (previousTreeNumber !== undefined && treeNumber < previousTreeNumber) {
+    if (
+      previousTreeNumber !== undefined &&
+      previousTreePosition !== undefined &&
+      treeNumber < previousTreeNumber
+    ) {
       throw new Error(
         'Invalid snapshot: commitment tree numbers must be nondecreasing'
       )
     }
 
-    if (previousTreeNumber !== undefined && treeNumber > previousTreeNumber) {
+    if (
+      previousTreeNumber !== undefined &&
+      previousTreePosition !== undefined &&
+      treeNumber > previousTreeNumber
+    ) {
       if (treeNumber !== previousTreeNumber + 1) {
         throw new Error(
           'Invalid snapshot: commitment tree numbers cannot skip represented trees'
         )
       }
 
-      const previousPosition = previousPositionByTree.get(previousTreeNumber)
-      if (previousPosition !== TREE_MAX_ITEMS - 1) {
+      const remainingPositions =
+        TREE_MAX_ITEMS - (previousTreePosition + 1)
+      if (batch.length <= remainingPositions) {
         throw new Error(
           'Invalid snapshot: commitment tree transition before previous tree prefix is complete'
         )
@@ -420,23 +643,27 @@ function validateCommitmentOrdering (
       }
     }
 
-    const previousPosition = previousPositionByTree.get(treeNumber)
-    assertAscendingKey(
-      treePosition,
-      previousPosition,
-      kind => kind === 'duplicate'
-        ? `duplicate commitment position ${treePosition} in tree ${treeNumber}`
-        : `commitment positions in tree ${treeNumber} must be strictly ascending`
-    )
-    if (previousPosition !== undefined && treePosition !== previousPosition + 1) {
-      throw new Error(
-        `Invalid snapshot: commitment position gap in tree ${treeNumber}`
+    if (
+      previousTreeNumber !== undefined &&
+      previousTreePosition !== undefined &&
+      treeNumber === previousTreeNumber
+    ) {
+      assertAscendingKey(
+        treePosition,
+        previousTreePosition,
+        kind => kind === 'duplicate'
+          ? `duplicate commitment position ${treePosition} in tree ${treeNumber}`
+          : `commitment positions in tree ${treeNumber} must be strictly ascending`
       )
+      if (treePosition !== previousTreePosition + 1) {
+        throw new Error(
+          `Invalid snapshot: commitment position gap in tree ${treeNumber}`
+        )
+      }
     }
 
-    previousPositionByTree.set(treeNumber, treePosition)
-    previousTreeNumber = treeNumber
-    isFirstCommitment = false
+    previousTreeNumber = lastCommitment.treeNumber
+    previousTreePosition = lastCommitment.treePosition
   }
 }
 
@@ -580,7 +807,7 @@ async function writeSnapshot (
  * @returns Blocks sorted by number with transactions sorted by index.
  */
 function canonicalizeBlocks (
-  blocks: EVMBlock[],
+  blocks: EncodeSnapshotBlock[],
   metadata: EncodeSnapshotMetadata
 ): SnapshotBlock[] {
   const filteredBlocks = blocks.filter((block) => {
@@ -603,22 +830,17 @@ function canonicalizeBlocks (
       const transactions = [...block.transactions]
         .sort((left, right) => left.index - right.index)
         .map((transaction): SnapshotTransaction => {
-          const rawActions = (transaction as { actions?: unknown }).actions
-          if (rawActions !== undefined && !Array.isArray(rawActions)) {
-            throw new Error('Invalid snapshot: transaction actions must be an array')
-          }
-
           return {
+            ...transaction,
             hash: transaction.hash,
             index: transaction.index,
             from: transaction.from,
-            actions: rawActions === undefined
-              ? []
-              : rawActions as SnapshotAction[][]
+            actions: canonicalizeActionBatchesForEncode(transaction.actions)
           }
         })
 
       return {
+        ...block,
         number: BigInt(block.number),
         hash: block.hash,
         timestamp: BigInt(block.timestamp),
@@ -646,7 +868,10 @@ function canonicalizeBlocks (
  * @param metadata.endHeight - End Height of the block
  * @returns - Encoded data
  */
-function encodeSnapshot (blocks: EVMBlock[], metadata: EncodeSnapshotMetadata) : Uint8Array {
+function encodeSnapshot (
+  blocks: EncodeSnapshotBlock[],
+  metadata: EncodeSnapshotMetadata
+) : Uint8Array {
   const { chainID, startHeight, endHeight } = metadata
 
   // Validate height range
@@ -675,7 +900,14 @@ function encodeSnapshot (blocks: EVMBlock[], metadata: EncodeSnapshotMetadata) :
   }
   const snapshot = validateSnapshot(snapshotContent)
 
-  const bytes = DAGCBORCodec.encodeToBytes(snapshot)
+  const bytes = DAGCBORCodec.encodeToBytes({
+    ...snapshotContent,
+    version: snapshot.version,
+    chainID: snapshot.chainID,
+    startHeight: snapshot.startHeight,
+    endHeight: snapshot.endHeight,
+    entryCount: snapshot.entryCount
+  })
   return zlib.brotliCompressSync(bytes, {
     params: {
       [zlib.constants.BROTLI_PARAM_QUALITY]: 6

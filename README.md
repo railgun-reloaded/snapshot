@@ -33,7 +33,11 @@
 
 - stable encoding: single DAG-CBOR implementation plus deterministic brotli
   settings
-- Structural validation: `entryCount` must match, `endHeight ≥ startHeight`, arrays preserve order, maps use string keys only.
+- Structural validation: `entryCount` must match, `endHeight ≥ startHeight`,
+  block numbers are unique and ascending, transaction indexes are unique and
+  ascending within each block, commitment entries are contiguous in Merkle
+  insertion order, and maps use string keys only. Action batches preserve source
+  order.
 - Identity: CIDv1(raw, sha2-256) over the exact compressed `.rsnap` bytes; any mutation changes the CID.
 
 ### Artifact format
@@ -77,7 +81,9 @@ compressed `.rsnap` artifact bytes directly, without going through the
 DB-backed `createSnapshot` flow.
 
 `encodeSnapshot` is synchronous and its output is byte-identical for the same
-input. Import and call it directly — there is no setup step.
+input. It canonicalizes block and transaction order, preserves action-batch
+order, validates the artifact before returning bytes, and can be imported
+directly — there is no setup step.
 
 ```ts
 import {

@@ -14,11 +14,18 @@ type SnapshotMemo = SnapshotMemoBytes | ReadonlyArray<SnapshotMemoBytes>
  * later trees may appear only after the previous tree's represented prefix is
  * complete.
  */
-type SnapshotCommitment = {
+type SnapshotCommitmentBase = {
   treeNumber: number
   treePosition: number
-  memo?: SnapshotMemo
 } & Record<string, unknown>
+
+type SnapshotCommitment = SnapshotCommitmentBase & {
+  memo?: SnapshotMemo
+}
+
+type SnapshotMemoCommitment = SnapshotCommitmentBase & {
+  memo: SnapshotMemo
+}
 
 /**
  * Snapshot action as encoded in the artifact.
@@ -30,7 +37,7 @@ type SnapshotCommitment = {
 type SnapshotAction = {
   actionType: string
   commitment?: SnapshotCommitment
-  commitments?: SnapshotCommitment[]
+  commitments?: SnapshotMemoCommitment[]
 } & Record<string, unknown>
 
 /**
@@ -81,6 +88,7 @@ export type {
   Snapshot,
   SnapshotAction,
   SnapshotBlock,
+  SnapshotMemoCommitment,
   SnapshotCommitment,
   SnapshotBytes,
   SnapshotMemo,
