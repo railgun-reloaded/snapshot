@@ -1,18 +1,305 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { before, test } from 'node:test'
+import zlib from 'node:zlib'
 
+import { getNetworkConfigFromChainID } from '../src/config/index.js'
 import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content/index.js'
 import { RailgunDB } from '../src/lib/database/index.js'
 import { CID } from '../src/lib/formats/index.js'
-import { decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core.js'
+import { decodeArtifact, decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core.js'
 import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec.js'
+import type { Snapshot, SnapshotAction, SnapshotBlock, SnapshotCommitment, SnapshotTransaction } from '../src/snapshot/types.js'
 
 import { loadBlockchainEvents } from './fixtures/index.js'
 import { TEST_VECTOR_EVENTS3 } from './test-vectors.js'
 import { cleanup, exists, makeTmpPath } from './utils.js'
 
 let rgEventBlocks: any[] = []
+
+const RAW_SNAPSHOT_VERSION = 1
+const TEST_CHAIN_ID = 999999
+
+/**
+ * Build deterministic bytes for ordering tests.
+ * @param seed - First byte seed.
+ * @param length - Output length.
+ * @returns Deterministic byte array.
+ */
+function makeBytes (seed: number, length = 32): Uint8Array {
+  return Uint8Array.from(
+    { length },
+    (_, index) => (seed + index) % 256
+  )
+}
+
+/**
+ * Build a positioned commitment for ordering tests.
+ * @param treeNumber - Commitment tree number.
+ * @param treePosition - Commitment tree position.
+ * @param seed - Hash byte seed.
+ * @returns Snapshot commitment.
+ */
+function makeCommitment (
+  treeNumber: number,
+  treePosition: number,
+  seed = treePosition
+): SnapshotCommitment {
+  return {
+    hash: makeBytes(seed),
+    memo: new Uint8Array([]),
+    treeNumber,
+    treePosition
+  }
+}
+
+/**
+ * Build a multi-commitment action.
+ * @param commitments - Commitment entries.
+ * @param label - Optional ordering label.
+ * @returns Snapshot action.
+ */
+function makeCommitmentAction (
+  commitments: SnapshotCommitment[],
+  label?: string
+): SnapshotAction {
+  return {
+    actionType: 'EncryptedCommitment',
+    txID: makeBytes(1),
+    nullifiers: [],
+    commitments,
+    boundParamsHash: makeBytes(2),
+    utxoBatchStartPositionOut: commitments[0]?.treePosition ?? 0,
+    utxoTreeIn: commitments[0]?.treeNumber ?? 0,
+    utxoTreeOut: commitments[0]?.treeNumber ?? 0,
+    hasUnshield: false,
+    ...(label !== undefined && { label })
+  }
+}
+
+/**
+ * Build a single-commitment action.
+ * @param commitment - Commitment entry.
+ * @returns Snapshot action.
+ */
+function makeSingleCommitmentAction (
+  commitment: SnapshotCommitment
+): SnapshotAction {
+  return {
+    actionType: 'GeneratedCommitment',
+    batchStartTreePosition: commitment.treePosition,
+    commitment
+  }
+}
+
+/**
+ * Build a non-commitment action.
+ * @param label - Ordering label.
+ * @returns Snapshot action.
+ */
+function makeNonCommitmentAction (label: string): SnapshotAction {
+  return {
+    actionType: 'Unshield',
+    label
+  }
+}
+
+/**
+ * Build a snapshot transaction.
+ * @param index - Transaction index.
+ * @param actions - Action batches.
+ * @param seed - Hash byte seed.
+ * @returns Snapshot transaction.
+ */
+function makeTransaction (
+  index: number,
+  actions: SnapshotAction[][],
+  seed = index
+): SnapshotTransaction {
+  return {
+    hash: makeBytes(seed),
+    index,
+    from: makeBytes(seed + 20, 20),
+    actions
+  }
+}
+
+/**
+ * Build a snapshot block.
+ * @param number - Block number.
+ * @param transactions - Block transactions.
+ * @param seed - Hash byte seed.
+ * @returns Snapshot block.
+ */
+function makeBlock (
+  number: bigint,
+  transactions: SnapshotTransaction[] = [],
+  seed = Number(number % 1000n)
+): SnapshotBlock {
+  return {
+    number,
+    hash: makeBytes(seed),
+    timestamp: number * 1000n,
+    transactions
+  }
+}
+
+/**
+ * Count action entries in snapshot blocks.
+ * @param blocks - Snapshot blocks.
+ * @returns Action count.
+ */
+function countActions (blocks: SnapshotBlock[]): number {
+  return blocks.reduce(
+    (blockTotal, block) => blockTotal + block.transactions.reduce(
+      (transactionTotal, transaction) =>
+        transactionTotal + transaction.actions.reduce(
+          (actionTotal, batch) => actionTotal + batch.length,
+          0
+        ),
+      0
+    ),
+    0
+  )
+}
+
+/**
+ * Build a raw snapshot root object.
+ * @param blocks - Snapshot blocks.
+ * @param overrides - Root field overrides.
+ * @returns Snapshot root.
+ */
+function makeSnapshot (
+  blocks: SnapshotBlock[],
+  overrides: Partial<Snapshot> = {}
+): Snapshot {
+  const heights = blocks.map(block => block.number)
+  const startHeight = heights.length > 0
+    ? heights.reduce((left, right) => left < right ? left : right)
+    : 0n
+  const endHeight = heights.length > 0
+    ? heights.reduce((left, right) => left > right ? left : right)
+    : 0n
+
+  return {
+    version: RAW_SNAPSHOT_VERSION,
+    chainID: TEST_CHAIN_ID,
+    startHeight,
+    endHeight,
+    entryCount: countActions(blocks),
+    blocks,
+    ...overrides
+  }
+}
+
+/**
+ * Encode a raw root object without producer canonicalization.
+ * @param value - Raw snapshot-like root.
+ * @returns Compressed artifact bytes.
+ */
+function encodeRawArtifact (value: Record<string, unknown>): Uint8Array {
+  const bytes = DAGCBORCodec.encodeToBytes(value)
+  return zlib.brotliCompressSync(bytes, {
+    params: {
+      [zlib.constants.BROTLI_PARAM_QUALITY]: 6
+    }
+  })
+}
+
+/**
+ * Decode a raw root object through the artifact decoder.
+ * @param value - Raw snapshot-like root.
+ * @returns Decoded snapshot.
+ */
+async function decodeRawArtifact (
+  value: Record<string, unknown>
+): Promise<Snapshot> {
+  const encoded = encodeRawArtifact(value)
+  const cid = await artifactCIDFromBytes(encoded)
+  return decodeArtifact(encoded, cid)
+}
+
+/**
+ * Encode test blocks through the public producer.
+ * @param blocks - Snapshot-shaped test blocks.
+ * @param metadata - Snapshot metadata.
+ * @returns Compressed artifact bytes.
+ */
+function encodeTestSnapshot (
+  blocks: SnapshotBlock[],
+  metadata: Parameters<typeof encodeSnapshot>[1]
+): Uint8Array {
+  return encodeSnapshot(
+    blocks as unknown as Parameters<typeof encodeSnapshot>[0],
+    metadata
+  )
+}
+
+/**
+ * Decode already encoded artifact bytes.
+ * @param encoded - Compressed artifact bytes.
+ * @returns Decoded snapshot.
+ */
+async function decodeEncodedSnapshot (encoded: Uint8Array): Promise<Snapshot> {
+  const cid = await artifactCIDFromBytes(encoded)
+  return decodeArtifact(encoded, cid)
+}
+
+/**
+ * Collect commitments in artifact order.
+ * @param snapshot - Decoded snapshot.
+ * @returns Commitment entries.
+ */
+function collectCommitments (snapshot: Snapshot): SnapshotCommitment[] {
+  const commitments: SnapshotCommitment[] = []
+  for (const block of snapshot.blocks) {
+    for (const transaction of block.transactions) {
+      for (const batch of transaction.actions) {
+        for (const action of batch) {
+          if (action.commitment) {
+            commitments.push(action.commitment)
+          }
+          commitments.push(...(action.commitments ?? []))
+        }
+      }
+    }
+  }
+  return commitments
+}
+
+/**
+ * Read a commitment hash from a test commitment.
+ * @param commitment - Snapshot commitment.
+ * @returns Commitment hash bytes.
+ */
+function commitmentHash (commitment: SnapshotCommitment): Uint8Array {
+  const hash = commitment['hash']
+  assert.ok(hash instanceof Uint8Array)
+  return hash
+}
+
+/**
+ * Simulate wallet-sdk block batch appends for ordering tests.
+ * @param snapshot - Decoded snapshot.
+ * @param blockBatchSize - Number of blocks per batch.
+ * @returns Appended commitment hashes.
+ */
+function appendCommitmentsByBlockBatch (
+  snapshot: Snapshot,
+  blockBatchSize: number
+): Uint8Array[] {
+  const appended: Uint8Array[] = []
+  for (let index = 0; index < snapshot.blocks.length; index += blockBatchSize) {
+    const batchSnapshot = {
+      ...snapshot,
+      blocks: snapshot.blocks.slice(index, index + blockBatchSize)
+    }
+    const batchCommitments = collectCommitments(batchSnapshot)
+      .sort((left, right) => left.treePosition - right.treePosition)
+    appended.push(...batchCommitments.map(commitmentHash))
+  }
+  return appended
+}
 
 before(() => {
   const data = loadBlockchainEvents()
@@ -437,6 +724,349 @@ test('Snapshot encoding determinism', async (t) => {
   })
 })
 
+test('Snapshot canonical artifact ordering', async (t) => {
+  await t.test('producer canonicalizes blocks and transactions before encoding', async () => {
+    const tx1 = makeTransaction(1, [[
+      makeSingleCommitmentAction(makeCommitment(0, 0, 10))
+    ]], 101)
+    const tx2 = makeTransaction(2, [[
+      makeCommitmentAction([makeCommitment(0, 1, 11)])
+    ]], 102)
+    const tx3 = makeTransaction(0, [[
+      makeCommitmentAction([makeCommitment(0, 2, 12)])
+    ]], 103)
+
+    const block10 = makeBlock(10n, [tx2, tx1], 10)
+    const block10Canonical = makeBlock(10n, [tx1, tx2], 10)
+    const block11 = makeBlock(11n, [tx3], 11)
+    const metadata = {
+      chainID: TEST_CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 11n
+    }
+
+    const encodedUnsorted = encodeTestSnapshot([block11, block10], metadata)
+    const encodedCanonical = encodeTestSnapshot(
+      [block10Canonical, block11],
+      metadata
+    )
+    assert.deepStrictEqual(encodedUnsorted, encodedCanonical)
+
+    const [cidUnsorted, cidCanonical] = await Promise.all([
+      artifactCIDFromBytes(encodedUnsorted),
+      artifactCIDFromBytes(encodedCanonical)
+    ])
+    assert.equal(cidUnsorted, cidCanonical)
+
+    const decoded = await decodeArtifact(encodedUnsorted, cidUnsorted)
+    assert.deepStrictEqual(
+      decoded.blocks.map(block => block.number),
+      [10n, 11n]
+    )
+    assert.deepStrictEqual(
+      decoded.blocks[0]!.transactions.map(transaction => transaction.index),
+      [1, 2]
+    )
+    assert.deepStrictEqual(
+      collectCommitments(decoded).map(commitment => commitment.treePosition),
+      [0, 1, 2]
+    )
+  })
+
+  await t.test('producer rejects duplicate block numbers and transaction indexes', () => {
+    const metadata = {
+      chainID: TEST_CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 11n
+    }
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        makeBlock(10n, [
+          makeTransaction(0, [[
+            makeCommitmentAction([makeCommitment(0, 0)])
+          ]])
+        ]),
+        makeBlock(10n, [
+          makeTransaction(0, [[
+            makeCommitmentAction([makeCommitment(0, 1)])
+          ]])
+        ])
+      ], metadata),
+      /duplicate block number/
+    )
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        makeBlock(10n, [
+          makeTransaction(1, [[
+            makeCommitmentAction([makeCommitment(0, 0)])
+          ]]),
+          makeTransaction(1, [[
+            makeCommitmentAction([makeCommitment(0, 1)])
+          ]])
+        ])
+      ], metadata),
+      /duplicate transaction index/
+    )
+  })
+
+  await t.test('producer rejects malformed commitment positions', () => {
+    const metadata = {
+      chainID: TEST_CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 10n
+    }
+    /**
+     * Build one block containing the supplied commitments.
+     * @param commitments - Commitment entries.
+     * @returns Snapshot block.
+     */
+    const blockWithCommitments = (
+      commitments: SnapshotCommitment[]
+    ): SnapshotBlock => makeBlock(10n, [
+      makeTransaction(0, [[makeCommitmentAction(commitments)]])
+    ])
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        blockWithCommitments([
+          makeCommitment(0, 0),
+          makeCommitment(0, 0)
+        ])
+      ], metadata),
+      /duplicate commitment position/
+    )
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        blockWithCommitments([
+          makeCommitment(0, 1),
+          makeCommitment(0, 0)
+        ])
+      ], metadata),
+      /strictly ascending/
+    )
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        blockWithCommitments([
+          makeCommitment(0, 0),
+          makeCommitment(0, 2)
+        ])
+      ], metadata),
+      /commitment position gap/
+    )
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        blockWithCommitments([
+          makeCommitment(0, 0),
+          makeCommitment(1, 0)
+        ])
+      ], metadata),
+      /tree transition before previous tree prefix is complete/
+    )
+  })
+
+  await t.test('producer enforces cold-start commitment prefix from deployment', () => {
+    const deploymentBlock = getNetworkConfigFromChainID(1).deploymentBlock
+    const metadata = {
+      chainID: 1,
+      startHeight: deploymentBlock,
+      endHeight: deploymentBlock
+    }
+
+    assert.throws(
+      () => encodeTestSnapshot([
+        makeBlock(deploymentBlock, [
+          makeTransaction(0, [[
+            makeCommitmentAction([makeCommitment(0, 1)])
+          ]])
+        ])
+      ], metadata),
+      /cold-start commitments must start at tree 0 position 0/
+    )
+  })
+
+  await t.test('decoder rejects noncanonical block and transaction ordering', async () => {
+    await assert.rejects(
+      () => decodeRawArtifact(makeSnapshot([
+        makeBlock(11n),
+        makeBlock(10n)
+      ], {
+        startHeight: 10n,
+        endHeight: 11n
+      })),
+      /blocks must be strictly ascending/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(makeSnapshot([
+        makeBlock(10n),
+        makeBlock(10n)
+      ])),
+      /duplicate block number/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(makeSnapshot([
+        makeBlock(10n, [
+          makeTransaction(2, []),
+          makeTransaction(1, [])
+        ])
+      ])),
+      /transactions in block 10 must be strictly ascending/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(makeSnapshot([
+        makeBlock(10n, [
+          makeTransaction(1, []),
+          makeTransaction(1, [])
+        ])
+      ])),
+      /duplicate transaction index/
+    )
+  })
+
+  await t.test('decoder rejects malformed commitment ordering', async () => {
+    /**
+     * Build one raw snapshot containing the supplied commitments.
+     * @param commitments - Commitment entries.
+     * @returns Snapshot root.
+     */
+    const snapshotWithCommitments = (
+      commitments: SnapshotCommitment[]
+    ): Snapshot => makeSnapshot([
+      makeBlock(10n, [
+        makeTransaction(0, [[makeCommitmentAction(commitments)]])
+      ])
+    ])
+
+    await assert.rejects(
+      () => decodeRawArtifact(snapshotWithCommitments([
+        makeCommitment(0, 0),
+        makeCommitment(0, 0)
+      ])),
+      /duplicate commitment position/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(snapshotWithCommitments([
+        makeCommitment(0, 1),
+        makeCommitment(0, 0)
+      ])),
+      /strictly ascending/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(snapshotWithCommitments([
+        makeCommitment(0, 0),
+        makeCommitment(0, 2)
+      ])),
+      /commitment position gap/
+    )
+
+    await assert.rejects(
+      () => decodeRawArtifact(snapshotWithCommitments([
+        makeCommitment(0, 0),
+        makeCommitment(1, 0)
+      ])),
+      /tree transition before previous tree prefix is complete/
+    )
+  })
+
+  await t.test('valid artifacts preserve action batch and non-commitment action ordering', async () => {
+    const block = makeBlock(10n, [
+      makeTransaction(0, [
+        [
+          makeNonCommitmentAction('before-commitment'),
+          makeCommitmentAction([makeCommitment(0, 0)], 'first-commitment')
+        ],
+        [
+          makeNonCommitmentAction('between-commitments'),
+          makeCommitmentAction([makeCommitment(0, 1)], 'second-commitment')
+        ],
+        [
+          makeNonCommitmentAction('after-commitments')
+        ]
+      ])
+    ])
+
+    const encoded = encodeTestSnapshot([block], {
+      chainID: TEST_CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 10n
+    })
+    const decoded = await decodeEncodedSnapshot(encoded)
+    const actions = decoded.blocks[0]!.transactions[0]!.actions
+
+    assert.deepStrictEqual(
+      actions.map(batch => batch.map(action => action['label'])),
+      [
+        ['before-commitment', 'first-commitment'],
+        ['between-commitments', 'second-commitment'],
+        ['after-commitments']
+      ]
+    )
+  })
+
+  await t.test('artifact-order commitment application produces expected Merkle root', async () => {
+    const commitments = Array.from(
+      { length: 8 },
+      (_, index) => makeCommitment(0, index, index + 50)
+    )
+    const block = makeBlock(10n, [
+      makeTransaction(0, [
+        [makeCommitmentAction(commitments.slice(0, 3))],
+        [makeCommitmentAction(commitments.slice(3, 5))],
+        [makeCommitmentAction(commitments.slice(5))]
+      ])
+    ])
+    const decoded = await decodeEncodedSnapshot(encodeTestSnapshot([block], {
+      chainID: TEST_CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 10n
+    }))
+
+    const artifactOrderLeaves = collectCommitments(decoded).map(commitmentHash)
+    const expectedLeaves = commitments.map(commitmentHash)
+    assert.deepEqual(artifactOrderLeaves, expectedLeaves)
+  })
+
+  await t.test('commitment order remains correct across wallet-sdk-sized block batches', async () => {
+    const walletSdkBlockBatchSize = 100
+    const blocks = Array.from({ length: walletSdkBlockBatchSize + 1 }, (_, index) => {
+      const blockNumber = 1000n + BigInt(index)
+      return makeBlock(blockNumber, [
+        makeTransaction(0, [[
+          makeCommitmentAction([
+            makeCommitment(0, index, index + 100)
+          ])
+        ]], index)
+      ], index)
+    })
+
+    const decoded = await decodeEncodedSnapshot(encodeTestSnapshot(blocks, {
+      chainID: TEST_CHAIN_ID,
+      startHeight: blocks[0]!.number,
+      endHeight: blocks[blocks.length - 1]!.number
+    }))
+
+    const batchAppendedLeaves = appendCommitmentsByBlockBatch(
+      decoded,
+      walletSdkBlockBatchSize
+    )
+    const expectedLeaves = Array.from(
+      { length: walletSdkBlockBatchSize + 1 },
+      (_, index) => commitmentHash(makeCommitment(0, index, index + 100))
+    )
+
+    assert.deepEqual(batchAppendedLeaves, expectedLeaves)
+  })
+})
+
 test('Snapshot error handling', async (t) => {
   await t.test('should handle invalid block range (startHeight > endHeight)', async () => {
     const dbPath = makeTmpPath('db')
@@ -458,36 +1088,25 @@ test('Snapshot error handling', async (t) => {
   })
 
   await t.test('should reject malformed decoded block data', async () => {
-    const dbPath = makeTmpPath('db')
-    const out = makeTmpPath('snap') + '.rsnap'
-    const db = new RailgunDB()
-
     // Malformed data: missing transactions array
     const malformedBlock = {
-      number: 12345,
+      number: 12345n,
       hash: '0xabc',
-      timestamp: 1234567890,
+      timestamp: 1234567890n,
       // transactions: missing
     }
 
-    await db.set('blocks', [malformedBlock])
-
-    const encoded = await encodeSnapshotFromDB(db, {
-      chainID: 1,
-      startHeight: 12345n,
-      endHeight: 12345n
-    })
-
-    await writeSnapshot(out, encoded)
-    const cid = await computeArtifactCID(out)
-
-    assert.ok(cid)
     await assert.rejects(
-      () => decodeSnapshot(out, cid),
+      () => decodeRawArtifact({
+        version: RAW_SNAPSHOT_VERSION,
+        chainID: TEST_CHAIN_ID,
+        startHeight: 12345n,
+        endHeight: 12345n,
+        entryCount: 0,
+        blocks: [malformedBlock]
+      }),
       /block transactions must be an array/
     )
-
-    cleanup(dbPath, out)
   })
 
   await t.test('should reject snapshot bytes that do not match the expected CID', async () => {
