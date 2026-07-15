@@ -1,4 +1,4 @@
-import { cborg, cborgTaglib, dagCbor } from '../lib/formats/index.js'
+import { cborg, cborgTaglib, dagCbor } from '../lib/formats/ipld.js'
 
 /**
  * Class for handling encoding/decoding of DAGCBOR data

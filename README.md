@@ -57,7 +57,7 @@ npm install @railgun-reloaded/snapshot
 ### `createSnapshot`
 
 ```ts
-import { createSnapshot } from "@railgun-reloaded/snapshot";
+import { createSnapshot } from "@railgun-reloaded/snapshot/node";
 
 async function main() {
   await createSnapshot({
@@ -80,10 +80,10 @@ Producer-side encoder for callers that already hold scanner blocks and want the
 compressed `.rsnap` artifact bytes directly, without going through the
 DB-backed `createSnapshot` flow.
 
-`encodeSnapshot` is synchronous and its output is byte-identical for the same
-input. It canonicalizes block and transaction order, preserves action-batch
-order, validates the artifact before returning bytes, and can be imported
-directly — there is no setup step.
+The platform-neutral `encodeSnapshot` resolves to compressed bytes after the
+browser-safe brotli runtime is ready. It canonicalizes block and transaction
+order, preserves action-batch order, validates the artifact before returning
+bytes, and can be imported directly — there is no setup step.
 
 ```ts
 import {
@@ -99,7 +99,7 @@ async function main() {
     endHeight: 18500000n
   };
 
-  const bytes = encodeSnapshot(blocks, metadata); // Uint8Array (.rsnap bytes)
+  const bytes = await encodeSnapshot(blocks, metadata); // Uint8Array (.rsnap bytes)
   const cid = await artifactCIDFromBytes(bytes);
 
   console.log("Artifact CID:", cid);

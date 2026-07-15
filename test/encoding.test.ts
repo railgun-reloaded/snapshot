@@ -4,11 +4,20 @@ import { before, test } from 'node:test'
 import zlib from 'node:zlib'
 
 import { getNetworkConfigFromChainID } from '../src/config/index.js'
-import type { Snapshot, SnapshotAction, SnapshotBlock, SnapshotCommitment, SnapshotMemoCommitment, SnapshotTransaction } from '../src/index.js'
-import { artifactCIDFromBytes, computeArtifactCID, writeCarWithArtifactRoot } from '../src/lib/content/index.js'
-import { RailgunDB } from '../src/lib/database/index.js'
 import { CID } from '../src/lib/formats/index.js'
-import { decodeArtifact, decodeSnapshot, encodeSnapshot, encodeSnapshotFromDB, writeSnapshot } from '../src/snapshot/core.js'
+import type { Snapshot, SnapshotAction, SnapshotBlock, SnapshotCommitment, SnapshotMemoCommitment, SnapshotTransaction } from '../src/node/index.js'
+import {
+  RailgunDB,
+
+  artifactCIDFromBytes,
+  computeArtifactCID,
+  decodeArtifact,
+  decodeSnapshot,
+  encodeSnapshot,
+  encodeSnapshotFromDB,
+  writeCarWithArtifactRoot,
+  writeSnapshot
+} from '../src/node/index.js'
 import { DAGCBORCodec } from '../src/snapshot/dagcbor-codec.js'
 
 import { loadBlockchainEvents } from './fixtures/index.js'

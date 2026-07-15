@@ -1,6 +1,23 @@
-export { createSnapshot, writeSnapshot, encodeSnapshot, decodeArtifact, decodeSnapshot } from './snapshot/core.js'
-export type { EncodeSnapshotMetadata } from './snapshot/core.js'
-export type { Snapshot, SnapshotAction, SnapshotBlock, SnapshotCommitment, SnapshotMemoCommitment, SnapshotBytes, SnapshotMemo, SnapshotMemoBytes, SnapshotTransaction } from './snapshot/types.js'
-export { computeArtifactCID, artifactCIDFromBytes, computeRawCID, rawCIDFromDigestBytes, validateFileCID, writeCarWithRoot, writeCarWithArtifactRoot } from './lib/content/index.js'
+export {
+  decodeArtifact,
+  encodeSnapshot,
+  encodeSnapshotFromDB
+} from './snapshot/artifact.js'
+export type { EncodeSnapshotMetadata } from './snapshot/artifact.js'
+export type {
+  Snapshot,
+  SnapshotAction,
+  SnapshotBlock,
+  SnapshotCommitment,
+  SnapshotMemoCommitment,
+  SnapshotBytes,
+  SnapshotMemo,
+  SnapshotMemoBytes,
+  SnapshotTransaction
+} from './snapshot/types.js'
+export {
+  artifactCIDFromBytes,
+  rawCIDFromDigestBytes
+} from './lib/content/artifact.js'
 export { RailgunDB } from './lib/database/index.js'
 export * from './config/index.js'

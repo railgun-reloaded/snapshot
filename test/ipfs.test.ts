@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { test } from 'node:test'
 
-import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/lib/content/index.js'
+import { computeRawCID, validateFileCID, writeCarWithRoot } from '../src/node/index.js'
 
 import { cleanup, makeTmpPath, writeFile } from './utils.js'
 

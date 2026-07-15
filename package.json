@@ -4,6 +4,28 @@
   "description": "A package to create snapshot of railgun events for data-sync",
   "type": "module",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "files": [
+    "src/**/*.js",
+    "src/**/*.d.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./node": {
+      "types": "./src/node/index.d.ts",
+      "default": "./src/node/index.js"
+    }
+  },
+  "imports": {
+    "#snapshot-brotli": {
+      "browser": "./src/snapshot/brotli-browser.js",
+      "node": "./src/snapshot/brotli-node.js",
+      "default": "./src/snapshot/brotli-browser.js"
+    }
+  },
   "scripts": {
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -31,10 +53,11 @@
   "dependencies": {
     "@ipld/car": "^5.3.3",
     "@ipld/dag-cbor": "^9.2.5",
+    "@railgun-reloaded/scanner": "https://github.com/railgun-reloaded/scanner.git#dev",
     "@railgun-reloaded/subsquid-client": "https://github.com/railgun-reloaded/subsquid-client.git#master",
+    "brotli-wasm": "^3.0.1",
     "cborg": "^5.1.1",
     "dotenv": "^17.2.3",
-    "@railgun-reloaded/scanner": "https://github.com/railgun-reloaded/scanner.git#dev",
     "multiformats": "^14.0.0"
   },
   "devDependencies": {
